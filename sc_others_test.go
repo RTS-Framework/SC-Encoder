@@ -1,6 +1,6 @@
 //go:build !windows
 
-package ssce
+package encoder
 
 import (
 	"syscall"
