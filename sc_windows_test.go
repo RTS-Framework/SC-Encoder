@@ -1,4 +1,4 @@
-package ssce
+package encoder
 
 import (
 	"syscall"
@@ -15,7 +15,7 @@ func loadShellcode(t *testing.T, sc []byte) uintptr {
 	mProtect := uint32(windows.PAGE_EXECUTE_READWRITE)
 	scAddr, err := windows.VirtualAlloc(0, size, mType, mProtect)
 	require.NoError(t, err)
-	dst := unsafe.Slice((*byte)(unsafe.Pointer(scAddr)), size)
+	dst := unsafe.Slice((*byte)(unsafe.Pointer(scAddr)), size) //nolint:govet
 	copy(dst, sc)
 	return scAddr
 }
