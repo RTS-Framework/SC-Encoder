@@ -1,4 +1,4 @@
-package ssce
+package encoder
 
 var (
 	saveContextX86    = [][]byte{{0x60}} //              pushad
@@ -55,12 +55,12 @@ var (
 	}
 )
 
-func (e *Encoder) saveContext() []byte {
+func (enc *Encoder) saveContext() []byte {
 	var (
 		save [][]byte
 		fp   [][]byte
 	)
-	switch e.arch {
+	switch enc.arch {
 	case 32:
 		save = saveContextX86
 		fp = saveContextFPX86
@@ -68,25 +68,25 @@ func (e *Encoder) saveContext() []byte {
 		save = saveContextX64
 		fp = saveContextFPX64
 	}
-	e.contextSeq = e.rand.Perm(len(save))
+	enc.contextSeq = enc.rand.Perm(len(save))
 	inst := make([]byte, 0, 128)
 	for i := 0; i < len(fp); i++ {
 		inst = append(inst, fp[i]...)
-		inst = append(inst, e.garbageInst()...)
+		inst = append(inst, enc.garbageInst()...)
 	}
 	for i := 0; i < len(save); i++ {
-		inst = append(inst, save[e.contextSeq[i]]...)
-		inst = append(inst, e.garbageInst()...)
+		inst = append(inst, save[enc.contextSeq[i]]...)
+		inst = append(inst, enc.garbageInst()...)
 	}
 	return inst
 }
 
-func (e *Encoder) restoreContext() []byte {
+func (enc *Encoder) restoreContext() []byte {
 	var (
 		restore [][]byte
 		fp      [][]byte
 	)
-	switch e.arch {
+	switch enc.arch {
 	case 32:
 		restore = restoreContextX86
 		fp = restoreContextFPX86
@@ -96,12 +96,12 @@ func (e *Encoder) restoreContext() []byte {
 	}
 	inst := make([]byte, 0, 128)
 	for i := len(restore) - 1; i >= 0; i-- {
-		inst = append(inst, restore[e.contextSeq[i]]...)
-		inst = append(inst, e.garbageInst()...)
+		inst = append(inst, restore[enc.contextSeq[i]]...)
+		inst = append(inst, enc.garbageInst()...)
 	}
 	for i := 0; i < len(fp); i++ {
 		inst = append(inst, fp[i]...)
-		inst = append(inst, e.garbageInst()...)
+		inst = append(inst, enc.garbageInst()...)
 	}
 	return inst
 }
