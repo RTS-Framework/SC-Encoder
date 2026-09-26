@@ -58,17 +58,24 @@ type junkCodeCtx struct {
 	DWORD map[string]int32
 	QWORD map[string]int64
 
-	// for random immediate data with [0, 32) and [0, 64)
-	Less32 map[string]int
-	Less64 map[string]int
+	// for random immediate data
+	Less16 map[string]int // [1, 15]
+	Less32 map[string]int // [1, 31]
+	Less64 map[string]int // [1, 63]
 }
 
-// the output garbage instruction length is no limit.
-func (enc *Encoder) garbageInst() []byte {
-	if enc.opts.NoGarbage {
+func (enc *Encoder) insertJunkInst() string {
+	if enc.opts.NoJunkCode {
+		return ""
+	}
+	return ";" + toDB(enc.buildJunkInst())
+}
+
+func (enc *Encoder) buildJunkInst() []byte {
+	if enc.opts.NoJunkCode {
 		return nil
 	}
-	// random not insert garbage
+	// random not insert junk instruction
 	if enc.rand.Intn(10) == 0 {
 		return nil
 	}
@@ -80,44 +87,19 @@ func (enc *Encoder) garbageInst() []byte {
 		numJunkCodes = len(enc.getJunkCodeX64())
 	}
 	// dynamically adjust probability
-	switch enc.rand.Intn(2 + numJunkCodes) {
+	switch enc.rand.Intn(3 + numJunkCodes) {
 	case 0:
-		return enc.garbageJumpShort(2, 16)
-	case 1:
-		return enc.garbageMultiByteNOP()
-	default:
-		return enc.garbageTemplate()
-	}
-}
-
-// the output garbage instruction length is <= 7 bytes.
-func (enc *Encoder) garbageInstShort() []byte {
-	if enc.opts.NoGarbage {
 		return nil
-	}
-	switch enc.rand.Intn(2) {
-	case 0:
-		return enc.garbageJumpShort(2, 5)
 	case 1:
-		return enc.garbageMultiByteNOP()
+		return enc.junkMultiByteNOP()
+	case 2:
+		return enc.junkJumpShort()
 	default:
-		panic("invalid garbage instruction selection")
+		return enc.junkTemplate()
 	}
 }
 
-// 0xEB, rel, [min, max] random bytes.
-func (enc *Encoder) garbageJumpShort(min, max int) []byte {
-	if min < 1 || max > 127 {
-		panic("garbage jump short length out of range")
-	}
-	jmp := make([]byte, 0, 1+max/2)
-	offset := min + enc.rand.Intn(max-min+1)
-	jmp = append(jmp, 0xEB, byte(offset)) // #nosec G115
-	jmp = append(jmp, enc.randBytes(offset)...)
-	return jmp
-}
-
-func (enc *Encoder) garbageMultiByteNOP() []byte {
+func (enc *Encoder) junkMultiByteNOP() []byte {
 	var nop []byte
 	switch enc.rand.Intn(2) {
 	case 0:
@@ -128,7 +110,15 @@ func (enc *Encoder) garbageMultiByteNOP() []byte {
 	return nop
 }
 
-func (enc *Encoder) garbageTemplate() []byte {
+func (enc *Encoder) junkJumpShort() []byte {
+	numInt3 := 1 + enc.rand.Intn(8)
+	jmp := make([]byte, 0, 10)
+	jmp = append(jmp, 0xEB, byte(numInt3)) // #nosec G115
+	jmp = append(jmp, bytes.Repeat([]byte{0xCC}, numInt3)...)
+	return jmp
+}
+
+func (enc *Encoder) junkTemplate() []byte {
 	var junkCodes []string
 	switch enc.arch {
 	case 32:
@@ -143,10 +133,16 @@ func (enc *Encoder) garbageTemplate() []byte {
 	if err != nil {
 		panic(err)
 	}
+	if len(asm) == 0 {
+		panic("empty output junk code assembly source")
+	}
 	// assemble junk code
 	inst, err := enc.assemble(asm)
 	if err != nil {
 		panic(fmt.Sprintf("failed to assemble junk code: %s", err))
+	}
+	if len(inst) == 0 {
+		panic("assemble junk code source with unknown error")
 	}
 	return inst
 }
