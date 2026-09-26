@@ -1,4 +1,4 @@
-package ssce
+package encoder
 
 import (
 	"bytes"
@@ -64,62 +64,62 @@ type junkCodeCtx struct {
 }
 
 // the output garbage instruction length is no limit.
-func (e *Encoder) garbageInst() []byte {
-	if e.opts.NoGarbage {
+func (enc *Encoder) garbageInst() []byte {
+	if enc.opts.NoGarbage {
 		return nil
 	}
 	// random not insert garbage
-	if e.rand.Intn(10) == 0 {
+	if enc.rand.Intn(10) == 0 {
 		return nil
 	}
 	var numJunkCodes int
-	switch e.arch {
+	switch enc.arch {
 	case 32:
-		numJunkCodes = len(e.getJunkCodeX86())
+		numJunkCodes = len(enc.getJunkCodeX86())
 	case 64:
-		numJunkCodes = len(e.getJunkCodeX64())
+		numJunkCodes = len(enc.getJunkCodeX64())
 	}
 	// dynamically adjust probability
-	switch e.rand.Intn(2 + numJunkCodes) {
+	switch enc.rand.Intn(2 + numJunkCodes) {
 	case 0:
-		return e.garbageJumpShort(2, 16)
+		return enc.garbageJumpShort(2, 16)
 	case 1:
-		return e.garbageMultiByteNOP()
+		return enc.garbageMultiByteNOP()
 	default:
-		return e.garbageTemplate()
+		return enc.garbageTemplate()
 	}
 }
 
 // the output garbage instruction length is <= 7 bytes.
-func (e *Encoder) garbageInstShort() []byte {
-	if e.opts.NoGarbage {
+func (enc *Encoder) garbageInstShort() []byte {
+	if enc.opts.NoGarbage {
 		return nil
 	}
-	switch e.rand.Intn(2) {
+	switch enc.rand.Intn(2) {
 	case 0:
-		return e.garbageJumpShort(2, 5)
+		return enc.garbageJumpShort(2, 5)
 	case 1:
-		return e.garbageMultiByteNOP()
+		return enc.garbageMultiByteNOP()
 	default:
 		panic("invalid garbage instruction selection")
 	}
 }
 
 // 0xEB, rel, [min, max] random bytes.
-func (e *Encoder) garbageJumpShort(min, max int) []byte {
+func (enc *Encoder) garbageJumpShort(min, max int) []byte {
 	if min < 1 || max > 127 {
 		panic("garbage jump short length out of range")
 	}
 	jmp := make([]byte, 0, 1+max/2)
-	offset := min + e.rand.Intn(max-min+1)
+	offset := min + enc.rand.Intn(max-min+1)
 	jmp = append(jmp, 0xEB, byte(offset)) // #nosec G115
-	jmp = append(jmp, e.randBytes(offset)...)
+	jmp = append(jmp, enc.randBytes(offset)...)
 	return jmp
 }
 
-func (e *Encoder) garbageMultiByteNOP() []byte {
+func (enc *Encoder) garbageMultiByteNOP() []byte {
 	var nop []byte
-	switch e.rand.Intn(2) {
+	switch enc.rand.Intn(2) {
 	case 0:
 		nop = []byte{0x90}
 	case 1:
@@ -128,45 +128,45 @@ func (e *Encoder) garbageMultiByteNOP() []byte {
 	return nop
 }
 
-func (e *Encoder) garbageTemplate() []byte {
+func (enc *Encoder) garbageTemplate() []byte {
 	var junkCodes []string
-	switch e.arch {
+	switch enc.arch {
 	case 32:
-		junkCodes = e.getJunkCodeX86()
+		junkCodes = enc.getJunkCodeX86()
 	case 64:
-		junkCodes = e.getJunkCodeX64()
+		junkCodes = enc.getJunkCodeX64()
 	}
 	// select random junk code template
-	idx := e.rand.Intn(len(junkCodes))
+	idx := enc.rand.Intn(len(junkCodes))
 	src := junkCodes[idx]
-	asm, err := e.buildJunkCode(src)
+	asm, err := enc.buildJunkCode(src)
 	if err != nil {
 		panic(err)
 	}
 	// assemble junk code
-	inst, err := e.assemble(asm)
+	inst, err := enc.assemble(asm)
 	if err != nil {
 		panic(fmt.Sprintf("failed to assemble junk code: %s", err))
 	}
 	return inst
 }
 
-func (e *Encoder) getJunkCodeX86() []string {
-	if len(e.opts.JunkCodeX86) > 0 {
-		return e.opts.JunkCodeX86
+func (enc *Encoder) getJunkCodeX86() []string {
+	if len(enc.opts.JunkCodeX86) > 0 {
+		return enc.opts.JunkCodeX86
 	}
 	return defaultJunkCodeX86
 }
 
-func (e *Encoder) getJunkCodeX64() []string {
-	if len(e.opts.JunkCodeX64) > 0 {
-		return e.opts.JunkCodeX64
+func (enc *Encoder) getJunkCodeX64() []string {
+	if len(enc.opts.JunkCodeX64) > 0 {
+		return enc.opts.JunkCodeX64
 	}
 	return defaultJunkCodeX64
 }
 
 // #nosec G115
-func (e *Encoder) buildJunkCode(src string) (string, error) {
+func (enc *Encoder) buildJunkCode(src string) (string, error) {
 	// process assembly source
 	tpl, err := template.New("junk_code").Funcs(template.FuncMap{
 		"db":  toDB,
@@ -184,18 +184,18 @@ func (e *Encoder) buildJunkCode(src string) (string, error) {
 	Less32 := make(map[string]int)
 	Less64 := make(map[string]int)
 	for i := 'A'; i <= 'Z'; i++ {
-		b := e.rand.Intn(2) == 0
+		b := enc.rand.Intn(2) == 0
 		switches[string(i)] = b
 		switches[string(i+0x20)] = b
-		BYTE[string(i)] = int8(e.rand.Int31() % 128)
-		WORD[string(i)] = int16(e.rand.Int31() % 32768)
-		DWORD[string(i)] = e.rand.Int31()
-		QWORD[string(i)] = e.rand.Int63()
-		Less32[string(i)] = e.rand.Intn(32)
-		Less64[string(i)] = e.rand.Intn(64)
+		BYTE[string(i)] = int8(enc.rand.Int31() % 128)
+		WORD[string(i)] = int16(enc.rand.Int31() % 32768)
+		DWORD[string(i)] = enc.rand.Int31()
+		QWORD[string(i)] = enc.rand.Int63()
+		Less32[string(i)] = enc.rand.Intn(32)
+		Less64[string(i)] = enc.rand.Intn(64)
 	}
 	ctx := junkCodeCtx{
-		Reg:    e.buildRandomRegisterMap(),
+		Reg:    enc.buildRandomRegisterMap(),
 		Switch: switches,
 		BYTE:   BYTE,
 		WORD:   WORD,
