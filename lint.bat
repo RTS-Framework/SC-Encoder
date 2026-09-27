@@ -1,2 +1,2 @@
 @echo off
-go-lints.bat
+cmd /c go-lints.bat
