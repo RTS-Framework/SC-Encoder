@@ -1,4 +1,4 @@
-package ssce
+package encoder
 
 import (
 	"embed"

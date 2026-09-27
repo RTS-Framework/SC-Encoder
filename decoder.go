@@ -1,55 +1,55 @@
-package ssce
+package encoder
 
 import (
 	"bytes"
 	"encoding/binary"
 )
 
-func (e *Encoder) decoderStub() []byte {
+func (enc *Encoder) decoderStub() []byte {
 	var decoder []byte
-	switch e.arch {
+	switch enc.arch {
 	case 32:
 		decoder = decoderX86
 	case 64:
 		decoder = decoderX64
 	}
-	return e.miniXOR(decoder, e.stubKey)
+	return enc.miniXOR(decoder, enc.stubKey)
 }
 
-func (e *Encoder) eraserStub() []byte {
+func (enc *Encoder) eraserStub() []byte {
 	var eraser []byte
-	switch e.arch {
+	switch enc.arch {
 	case 32:
 		eraser = eraserX86
 	case 64:
 		eraser = eraserX64
 	}
-	return e.miniXOR(eraser, e.stubKey)
+	return enc.miniXOR(eraser, enc.stubKey)
 }
 
-func (e *Encoder) cryptoKeyStub() []byte {
-	return e.miniXOR(e.key, e.stubKey)
+func (enc *Encoder) cryptoKeyStub() []byte {
+	return enc.miniXOR(enc.key, enc.stubKey)
 }
 
-func (e *Encoder) miniXOR(inst []byte, key any) []byte {
+func (enc *Encoder) miniXOR(inst []byte, key any) []byte {
 	var output []byte
-	switch e.arch {
+	switch enc.arch {
 	case 32:
-		output = e.miniXOR32(inst, key.(uint32))
+		output = enc.miniXOR32(inst, key.(uint32))
 	case 64:
-		output = e.miniXOR64(inst, key.(uint64))
+		output = enc.miniXOR64(inst, key.(uint64))
 	}
 	return output
 }
 
-func (e *Encoder) miniXOR32(inst []byte, key uint32) []byte {
+func (enc *Encoder) miniXOR32(inst []byte, key uint32) []byte {
 	// ensure the instructions length can be divisible by 4.
 	inst = bytes.Clone(inst)
 	numPad := len(inst) % 4
 	if numPad != 0 {
 		numPad = 4 - numPad
 	}
-	inst = append(inst, e.randBytes(numPad)...)
+	inst = append(inst, enc.randBytes(numPad)...)
 	for i := 0; i < len(inst); i += 4 {
 		val := binary.LittleEndian.Uint32(inst[i:])
 		binary.LittleEndian.PutUint32(inst[i:], val^key)
@@ -57,14 +57,14 @@ func (e *Encoder) miniXOR32(inst []byte, key uint32) []byte {
 	return inst
 }
 
-func (e *Encoder) miniXOR64(inst []byte, key uint64) []byte {
+func (enc *Encoder) miniXOR64(inst []byte, key uint64) []byte {
 	// ensure the instructions length can be divisible by 8.
 	inst = bytes.Clone(inst)
 	numPad := len(inst) % 8
 	if numPad != 0 {
 		numPad = 8 - numPad
 	}
-	inst = append(inst, e.randBytes(numPad)...)
+	inst = append(inst, enc.randBytes(numPad)...)
 	for i := 0; i < len(inst); i += 8 {
 		val := binary.LittleEndian.Uint64(inst[i:])
 		binary.LittleEndian.PutUint64(inst[i:], val^key)
@@ -72,17 +72,17 @@ func (e *Encoder) miniXOR64(inst []byte, key uint64) []byte {
 	return inst
 }
 
-func (e *Encoder) xsrl(inst []byte, seed, key uint32) []byte {
+func (enc *Encoder) xsrl(inst []byte, seed, key uint32) []byte {
 	// ensure the instructions length can be divisible by 4.
 	inst = bytes.Clone(inst)
 	numPad := len(inst) % 4
 	if numPad != 0 {
 		numPad = 4 - numPad
 	}
-	inst = append(inst, e.randBytes(numPad)...)
+	inst = append(inst, enc.randBytes(numPad)...)
 	for i := 0; i < len(inst); i += 4 {
 		val := binary.LittleEndian.Uint32(inst[i:])
-		switch e.arch {
+		switch enc.arch {
 		case 32:
 			val ^= key
 			val = ror32(val, 17)
