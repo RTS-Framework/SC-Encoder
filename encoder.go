@@ -6,27 +6,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
 	"math/rand"
-	"slices"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/For-ACGN/go-keystone"
-)
-
-var (
-	registerX86 = []string{
-		"eax", "ebx", "ecx", "edx",
-		"ebp", "esi", "edi",
-	}
-
-	registerX64 = []string{
-		"rax", "rbx", "rcx", "rdx",
-		"rbp", "rsi", "rdi",
-	}
 )
 
 // Encoder is a simple shellcode encoder.
@@ -192,7 +178,7 @@ func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Cont
 	// append garbage data to tail for prevent brute-force
 	output = append(output, enc.randBytes(opts.NumTailInst)...)
 	// append garbage data to the output shellcode prefix
-	output = append(enc.garbageInst(), output...)
+	output = append(enc.buildJunkInst(false), output...)
 	// append the random seed to tail
 	if !opts.TrimSeed {
 		buf := binary.BigEndian.AppendUint64(nil, uint64(seed)) // #nosec G115
@@ -282,7 +268,7 @@ func (enc *Encoder) addLoader(shellcode []byte) ([]byte, error) {
 
 func (enc *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte, error) {
 	// append instructions for "IV" about encoder
-	shellcode = append(enc.garbageInst(), shellcode...)
+	shellcode = append(enc.buildJunkInst(false), shellcode...)
 	// append instructions to tail for prevent brute-force
 	tail := enc.randBytes(64 + len(shellcode)/40)
 	shellcode = append(shellcode, tail...)
@@ -308,7 +294,7 @@ func (enc *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte
 	tpl, err := template.New("loader").Funcs(template.FuncMap{
 		"db":  toDB,
 		"hex": toHex,
-		"igi": enc.insertGarbageInst,
+		"iji": enc.insertJunkInst,
 	}).Parse(loader)
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
@@ -360,8 +346,8 @@ func (enc *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []by
 	tpl, err := template.New("mini_decoder").Funcs(template.FuncMap{
 		"db":  toDB,
 		"hex": toHex,
-		"igi": enc.insertGarbageInst,
-		"igs": enc.insertGarbageInstShort,
+		"iji": enc.insertJunkInst,
+		"ijs": enc.insertJunkInstShort,
 	}).Parse(decoder)
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
@@ -435,62 +421,6 @@ func (enc *Encoder) randBytes(n int) []byte {
 	buf := make([]byte, n)
 	_, _ = enc.rand.Read(buf)
 	return buf
-}
-
-func (enc *Encoder) buildRandomRegisterMap() map[string]string {
-	var reg []string
-	switch enc.arch {
-	case 32:
-		reg = slices.Clone(registerX86)
-	case 64:
-		reg = slices.Clone(registerX64)
-	}
-	enc.regBox = reg
-	register := make(map[string]string, 16)
-	switch enc.arch {
-	case 32:
-		for _, reg := range registerX86 {
-			register[reg] = enc.selectRegister()
-		}
-	case 64:
-		for _, reg := range registerX64 {
-			register[reg] = enc.selectRegister()
-		}
-		enc.buildLowBitRegisterMap(register)
-	}
-	return register
-}
-
-func (enc *Encoder) buildLowBitRegisterMap(register map[string]string) {
-	// build register map about low dword
-	low := make(map[string]string, len(register))
-	for reg, act := range register {
-		low[toRegDWORD(reg)] = toRegDWORD(act)
-	}
-	maps.Copy(register, low)
-}
-
-// selectRegister is used to make sure each register will be selected once.
-func (enc *Encoder) selectRegister() string {
-	idx := enc.rand.Intn(len(enc.regBox))
-	reg := enc.regBox[idx]
-	// remove selected register
-	enc.regBox = append(enc.regBox[:idx], enc.regBox[idx+1:]...)
-	return reg
-}
-
-func (enc *Encoder) insertGarbageInst() string {
-	if enc.opts.NoJunkCode {
-		return ""
-	}
-	return ";" + toDB(enc.garbageInst())
-}
-
-func (enc *Encoder) insertGarbageInstShort() string {
-	if enc.opts.NoJunkCode {
-		return ""
-	}
-	return ";" + toDB(enc.garbageInstShort())
 }
 
 // Close is used to close shellcode encoder.
