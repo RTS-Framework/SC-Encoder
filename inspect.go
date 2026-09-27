@@ -1,4 +1,4 @@
-package ssce
+package encoder
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ func InspectMiniDecoderTemplate(arch int, src string) (string, []byte, error) {
 	encoder := NewEncoder()
 	encoder.arch = arch
 	encoder.opts = &Options{
-		NoGarbage: true,
+		NoJunkCode: true,
 	}
 	err := encoder.initAssembler()
 	if err != nil {
@@ -45,7 +45,7 @@ func InspectLoaderTemplate(arch int, src string) (string, []byte, error) {
 	encoder := NewEncoder()
 	encoder.arch = arch
 	encoder.opts = &Options{
-		NoGarbage: true,
+		NoJunkCode: true,
 	}
 	err := encoder.initAssembler()
 	if err != nil {
