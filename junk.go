@@ -104,7 +104,10 @@ func (enc *Encoder) buildJunkInst(short bool) []byte {
 	case 1:
 		return enc.junkMultiByteNOP()
 	case 2:
-		return enc.junkJumpShort(2, 5)
+		if short {
+			return enc.junkJumpShort(2, 5)
+		}
+		return enc.junkJumpShort(2, 16)
 	default:
 		return enc.junkTemplate(short)
 	}
