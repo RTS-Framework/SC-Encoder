@@ -1,4 +1,4 @@
-package ssce
+package encoder
 
 import (
 	"bytes"
@@ -74,7 +74,7 @@ type Options struct {
 	NoIterator bool `toml:"no_iterator" json:"no_iterator"`
 
 	// disable garbage instruction, not recommend.
-	NoGarbage bool `toml:"no_garbage" json:"no_garbage"`
+	NoJunkCode bool `toml:"no_junk_code" json:"no_junk_code"`
 
 	// specify a random seed for encoder.
 	RandSeed int64 `toml:"rand_seed" json:"rand_seed"`
@@ -120,7 +120,7 @@ func NewEncoder() *Encoder {
 	if err == nil {
 		seed = int64(binary.LittleEndian.Uint64(buf)) // #nosec G115
 	} else {
-		seed = time.Now().UTC().UnixNano()
+		seed = time.Now().UnixNano()
 	}
 	encoder := Encoder{
 		rand: rand.New(rand.NewSource(seed)), // #nosec
@@ -129,7 +129,7 @@ func NewEncoder() *Encoder {
 }
 
 // Encode is used to encode input shellcode to a unique shellcode.
-func (e *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Context, err error) {
+func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Context, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.New(fmt.Sprint(r))
@@ -146,53 +146,53 @@ func (e *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Contex
 	if opts == nil {
 		opts = new(Options)
 	}
-	e.arch = arch
-	e.opts = opts
+	enc.arch = arch
+	enc.opts = opts
 	// initialize keystone engine
-	err = e.initAssembler()
+	err = enc.initAssembler()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize assembler: %s", err)
 	}
 	// set random seed
 	seed := opts.RandSeed
 	if seed == 0 {
-		seed = e.rand.Int63()
+		seed = enc.rand.Int63()
 	}
-	e.rand.Seed(seed)
+	enc.rand.Seed(seed)
 	// encode the raw shellcode and add loader
-	output, err := e.addLoader(shellcode)
+	output, err := enc.addLoader(shellcode)
 	if err != nil {
 		return nil, err
 	}
 	// insert mini decoder at the prefix
-	output, err = e.addMiniDecoder(output)
+	output, err = enc.addMiniDecoder(output)
 	if err != nil {
 		return nil, err
 	}
 	// iterate the encoding of the pre-decoder and part of the shellcode
 	numIter := opts.NumIterate
 	if numIter < 1 {
-		numIter = 2 + e.rand.Intn(4)
+		numIter = 2 + enc.rand.Intn(4)
 	}
 	if opts.NoIterator {
 		numIter = 0
 	}
 	for i := 0; i < numIter; i++ {
-		output, err = e.addMiniDecoder(output)
+		output, err = enc.addMiniDecoder(output)
 		if err != nil {
 			return nil, err
 		}
 	}
 	// padding garbage at the tail
-	if !opts.NoGarbage {
-		times := 8 + e.rand.Intn((numIter+1)*4)
-		size := e.rand.Intn(16 * times)
-		output = append(output, e.randBytes(size)...)
+	if !opts.NoJunkCode {
+		times := 8 + enc.rand.Intn((numIter+1)*4)
+		size := enc.rand.Intn(16 * times)
+		output = append(output, enc.randBytes(size)...)
 	}
 	// append garbage data to tail for prevent brute-force
-	output = append(output, e.randBytes(opts.NumTailInst)...)
+	output = append(output, enc.randBytes(opts.NumTailInst)...)
 	// append garbage data to the output shellcode prefix
-	output = append(e.garbageInst(), output...)
+	output = append(enc.garbageInst(), output...)
 	// append the random seed to tail
 	if !opts.TrimSeed {
 		buf := binary.BigEndian.AppendUint64(nil, uint64(seed)) // #nosec G115
@@ -204,128 +204,128 @@ func (e *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Contex
 		Seed:        seed,
 		NumIterate:  numIter,
 		MinifyMode:  opts.MinifyMode,
-		NoGarbage:   opts.NoGarbage,
+		NoGarbage:   opts.NoJunkCode,
 		SaveContext: opts.SaveContext,
 		EraseInst:   opts.EraseInst,
 	}
 	return ctx, nil
 }
 
-func (e *Encoder) initAssembler() error {
+func (enc *Encoder) initAssembler() error {
 	var (
 		ase *keystone.Engine
 		err error
 	)
-	switch e.arch {
+	switch enc.arch {
 	case 32:
-		if e.ase32 != nil {
+		if enc.ase32 != nil {
 			return nil
 		}
 		ase, err = keystone.NewEngine(keystone.ARCH_X86, keystone.MODE_32)
 		if err != nil {
 			return err
 		}
-		e.ase32 = ase
+		enc.ase32 = ase
 	case 64:
-		if e.ase64 != nil {
+		if enc.ase64 != nil {
 			return nil
 		}
 		ase, err = keystone.NewEngine(keystone.ARCH_X86, keystone.MODE_64)
 		if err != nil {
 			return err
 		}
-		e.ase64 = ase
+		enc.ase64 = ase
 	default:
 		panic("unreachable code")
 	}
 	return ase.Option(keystone.OPT_SYNTAX, keystone.OPT_SYNTAX_INTEL)
 }
 
-func (e *Encoder) assemble(src string) ([]byte, error) {
+func (enc *Encoder) assemble(src string) ([]byte, error) {
 	if strings.Contains(src, "<no value>") {
 		return nil, errors.New("invalid register in assembly source")
 	}
 	if strings.Contains(src, "<nil>") {
 		return nil, errors.New("invalid usage in assembly source")
 	}
-	switch e.arch {
+	switch enc.arch {
 	case 32:
-		return e.ase32.Assemble(src, 0)
+		return enc.ase32.Assemble(src, 0)
 	case 64:
-		return e.ase64.Assemble(src, 0)
+		return enc.ase64.Assemble(src, 0)
 	default:
 		panic("unreachable code")
 	}
 }
 
-func (e *Encoder) addLoader(shellcode []byte) ([]byte, error) {
-	if e.opts.MinifyMode {
+func (enc *Encoder) addLoader(shellcode []byte) ([]byte, error) {
+	if enc.opts.MinifyMode {
 		return shellcode, nil
 	}
 	var loader string
-	switch e.arch {
+	switch enc.arch {
 	case 32:
-		loader = e.getLoaderX86()
+		loader = enc.getLoaderX86()
 	case 64:
-		loader = e.getLoaderX64()
+		loader = enc.getLoaderX64()
 	}
-	asm, sc, err := e.buildLoader(loader, shellcode)
+	asm, sc, err := enc.buildLoader(loader, shellcode)
 	if err != nil {
 		return nil, err
 	}
-	inst, err := e.assemble(asm)
+	inst, err := enc.assemble(asm)
 	if err != nil {
 		return nil, err
 	}
 	return append(inst, sc...), nil
 }
 
-func (e *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte, error) {
+func (enc *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte, error) {
 	// append instructions for "IV" about encoder
-	shellcode = append(e.garbageInst(), shellcode...)
+	shellcode = append(enc.garbageInst(), shellcode...)
 	// append instructions to tail for prevent brute-force
-	tail := e.randBytes(64 + len(shellcode)/40)
+	tail := enc.randBytes(64 + len(shellcode)/40)
 	shellcode = append(shellcode, tail...)
 	// generate crypto key for shellcode decoder
-	cryptoKey := e.randBytes(32)
+	cryptoKey := enc.randBytes(32)
 	var (
 		stubKey   any
 		eraserLen int
 	)
-	switch e.arch {
+	switch enc.arch {
 	case 32:
-		stubKey = e.rand.Uint32()
-		eraserLen = len(eraserX86) + e.rand.Intn(len(cryptoKey))
+		stubKey = enc.rand.Uint32()
+		eraserLen = len(eraserX86) + enc.rand.Intn(len(cryptoKey))
 		shellcode = encrypt32(shellcode, cryptoKey)
 	case 64:
-		stubKey = e.rand.Uint64()
-		eraserLen = len(eraserX64) + e.rand.Intn(len(cryptoKey))
+		stubKey = enc.rand.Uint64()
+		eraserLen = len(eraserX64) + enc.rand.Intn(len(cryptoKey))
 		shellcode = encrypt64(shellcode, cryptoKey)
 	}
-	e.key = cryptoKey
-	e.stubKey = stubKey
+	enc.key = cryptoKey
+	enc.stubKey = stubKey
 	// parse loader template
 	tpl, err := template.New("loader").Funcs(template.FuncMap{
 		"db":  toDB,
 		"hex": toHex,
-		"igi": e.insertGarbageInst,
+		"igi": enc.insertGarbageInst,
 	}).Parse(loader)
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
 	}
 	ctx := loaderCtx{
 		StubKey:        stubKey,
-		DecoderStub:    e.decoderStub(),
-		EraserStub:     e.eraserStub(),
-		CryptoKeyStub:  e.cryptoKeyStub(),
+		DecoderStub:    enc.decoderStub(),
+		EraserStub:     enc.eraserStub(),
+		CryptoKeyStub:  enc.cryptoKeyStub(),
 		CryptoKeyLen:   len(cryptoKey),
 		ShellcodeLen:   len(shellcode),
 		EraserLen:      eraserLen,
-		EraseShellcode: e.opts.EraseInst,
+		EraseShellcode: enc.opts.EraseInst,
 	}
-	if e.opts.SaveContext {
-		ctx.SaveContext = e.saveContext()
-		ctx.RestoreContext = e.restoreContext()
+	if enc.opts.SaveContext {
+		ctx.SaveContext = enc.saveContext()
+		ctx.RestoreContext = enc.restoreContext()
 	}
 	// build source from template and assemble it
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
@@ -336,44 +336,44 @@ func (e *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte, 
 	return buf.String(), shellcode, nil
 }
 
-func (e *Encoder) addMiniDecoder(input []byte) ([]byte, error) {
+func (enc *Encoder) addMiniDecoder(input []byte) ([]byte, error) {
 	var miniDecoder string
-	switch e.arch {
+	switch enc.arch {
 	case 32:
-		miniDecoder = e.getMiniDecoderX86()
+		miniDecoder = enc.getMiniDecoderX86()
 	case 64:
-		miniDecoder = e.getMiniDecoderX64()
+		miniDecoder = enc.getMiniDecoderX64()
 	}
-	asm, body, err := e.buildMiniDecoder(miniDecoder, input)
+	asm, body, err := enc.buildMiniDecoder(miniDecoder, input)
 	if err != nil {
 		return nil, err
 	}
-	inst, err := e.assemble(asm)
+	inst, err := enc.assemble(asm)
 	if err != nil {
 		return nil, err
 	}
 	return append(inst, body...), nil
 }
 
-func (e *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []byte, error) {
+func (enc *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []byte, error) {
 	// parse mini decoder template
 	tpl, err := template.New("mini_decoder").Funcs(template.FuncMap{
 		"db":  toDB,
 		"hex": toHex,
-		"igi": e.insertGarbageInst,
-		"igs": e.insertGarbageInstShort,
+		"igi": enc.insertGarbageInst,
+		"igs": enc.insertGarbageInstShort,
 	}).Parse(decoder)
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
 	}
-	seed := e.rand.Uint32()
-	key := e.rand.Uint32()
-	body := e.xsrl(input, seed, key)
-	numLoopMaskA := e.rand.Int31()
-	numLoopMaskB := e.rand.Int31()
+	seed := enc.rand.Uint32()
+	key := enc.rand.Uint32()
+	body := enc.xsrl(input, seed, key)
+	numLoopMaskA := enc.rand.Int31()
+	numLoopMaskB := enc.rand.Int31()
 	numLoopStub := int32(len(body)/4) ^ numLoopMaskA ^ numLoopMaskB // #nosec G115
-	offsetT := e.rand.Int31n(math.MaxInt32/4 - 4096)
-	offsetA := e.rand.Int31n(math.MaxInt32/4 - 8192)
+	offsetT := enc.rand.Int31n(math.MaxInt32/4 - 4096)
+	offsetA := enc.rand.Int31n(math.MaxInt32/4 - 8192)
 	offsetS := offsetT + offsetA
 	ctx := miniDecoderCtx{
 		Seed: seed,
@@ -387,12 +387,12 @@ func (e *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []byte
 		OffsetA: offsetA,
 		OffsetS: offsetS,
 
-		Reg: e.buildRandomRegisterMap(),
+		Reg: enc.buildRandomRegisterMap(),
 	}
 	// add padding data at tail of mini decoder
-	if !e.opts.MinifyMode {
+	if !enc.opts.MinifyMode {
 		ctx.Padding = true
-		ctx.PadData = e.randBytes(8 + e.rand.Intn(48))
+		ctx.PadData = enc.randBytes(8 + enc.rand.Intn(48))
 	}
 	// build source from template and assemble it
 	buf := bytes.NewBuffer(make([]byte, 0, 512))
@@ -403,65 +403,65 @@ func (e *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []byte
 	return buf.String(), body, nil
 }
 
-func (e *Encoder) getMiniDecoderX86() string {
-	if e.opts.MiniDecoderX86 != "" {
-		return e.opts.MiniDecoderX86
+func (enc *Encoder) getMiniDecoderX86() string {
+	if enc.opts.MiniDecoderX86 != "" {
+		return enc.opts.MiniDecoderX86
 	}
 	return defaultMiniDecoderX86
 }
 
-func (e *Encoder) getMiniDecoderX64() string {
-	if e.opts.MiniDecoderX64 != "" {
-		return e.opts.MiniDecoderX64
+func (enc *Encoder) getMiniDecoderX64() string {
+	if enc.opts.MiniDecoderX64 != "" {
+		return enc.opts.MiniDecoderX64
 	}
 	return defaultMiniDecoderX64
 }
 
-func (e *Encoder) getLoaderX86() string {
-	if e.opts.LoaderX86 != "" {
-		return e.opts.LoaderX86
+func (enc *Encoder) getLoaderX86() string {
+	if enc.opts.LoaderX86 != "" {
+		return enc.opts.LoaderX86
 	}
 	return defaultLoaderX86
 }
 
-func (e *Encoder) getLoaderX64() string {
-	if e.opts.LoaderX64 != "" {
-		return e.opts.LoaderX64
+func (enc *Encoder) getLoaderX64() string {
+	if enc.opts.LoaderX64 != "" {
+		return enc.opts.LoaderX64
 	}
 	return defaultLoaderX64
 }
 
-func (e *Encoder) randBytes(n int) []byte {
+func (enc *Encoder) randBytes(n int) []byte {
 	buf := make([]byte, n)
-	_, _ = e.rand.Read(buf)
+	_, _ = enc.rand.Read(buf)
 	return buf
 }
 
-func (e *Encoder) buildRandomRegisterMap() map[string]string {
+func (enc *Encoder) buildRandomRegisterMap() map[string]string {
 	var reg []string
-	switch e.arch {
+	switch enc.arch {
 	case 32:
 		reg = slices.Clone(registerX86)
 	case 64:
 		reg = slices.Clone(registerX64)
 	}
-	e.regBox = reg
+	enc.regBox = reg
 	register := make(map[string]string, 16)
-	switch e.arch {
+	switch enc.arch {
 	case 32:
 		for _, reg := range registerX86 {
-			register[reg] = e.selectRegister()
+			register[reg] = enc.selectRegister()
 		}
 	case 64:
 		for _, reg := range registerX64 {
-			register[reg] = e.selectRegister()
+			register[reg] = enc.selectRegister()
 		}
-		e.buildLowBitRegisterMap(register)
+		enc.buildLowBitRegisterMap(register)
 	}
 	return register
 }
 
-func (e *Encoder) buildLowBitRegisterMap(register map[string]string) {
+func (enc *Encoder) buildLowBitRegisterMap(register map[string]string) {
 	// build register map about low dword
 	low := make(map[string]string, len(register))
 	for reg, act := range register {
@@ -471,41 +471,43 @@ func (e *Encoder) buildLowBitRegisterMap(register map[string]string) {
 }
 
 // selectRegister is used to make sure each register will be selected once.
-func (e *Encoder) selectRegister() string {
-	idx := e.rand.Intn(len(e.regBox))
-	reg := e.regBox[idx]
+func (enc *Encoder) selectRegister() string {
+	idx := enc.rand.Intn(len(enc.regBox))
+	reg := enc.regBox[idx]
 	// remove selected register
-	e.regBox = append(e.regBox[:idx], e.regBox[idx+1:]...)
+	enc.regBox = append(enc.regBox[:idx], enc.regBox[idx+1:]...)
 	return reg
 }
 
-func (e *Encoder) insertGarbageInst() string {
-	if e.opts.NoGarbage {
+func (enc *Encoder) insertGarbageInst() string {
+	if enc.opts.NoJunkCode {
 		return ""
 	}
-	return ";" + toDB(e.garbageInst())
+	return ";" + toDB(enc.garbageInst())
 }
 
-func (e *Encoder) insertGarbageInstShort() string {
-	if e.opts.NoGarbage {
+func (enc *Encoder) insertGarbageInstShort() string {
+	if enc.opts.NoJunkCode {
 		return ""
 	}
-	return ";" + toDB(e.garbageInstShort())
+	return ";" + toDB(enc.garbageInstShort())
 }
 
 // Close is used to close shellcode encoder.
-func (e *Encoder) Close() error {
-	if e.ase32 != nil {
-		err := e.ase32.Close()
+func (enc *Encoder) Close() error {
+	if enc.ase32 != nil {
+		err := enc.ase32.Close()
 		if err != nil {
 			return err
 		}
+		enc.ase32 = nil
 	}
-	if e.ase64 != nil {
-		err := e.ase64.Close()
+	if enc.ase64 != nil {
+		err := enc.ase64.Close()
 		if err != nil {
 			return err
 		}
+		enc.ase64 = nil
 	}
 	return nil
 }

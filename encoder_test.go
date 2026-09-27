@@ -1,4 +1,4 @@
-package ssce
+package encoder
 
 import (
 	"bytes"
@@ -32,7 +32,7 @@ func TestEncoder(t *testing.T) {
 		opts := &Options{
 			EraseInst:  true,
 			NoIterator: true,
-			NoGarbage:  true,
+			NoJunkCode: true,
 		}
 		ctx, err := encoder.Encode(shellcode, 32, opts)
 		require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestEncoder(t *testing.T) {
 		opts := &Options{
 			EraseInst:  true,
 			NoIterator: true,
-			NoGarbage:  true,
+			NoJunkCode: true,
 		}
 		ctx, err := encoder.Encode(shellcode, 64, opts)
 		require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestMinifyMode(t *testing.T) {
 		opts := &Options{
 			MinifyMode: true,
 			NoIterator: true,
-			NoGarbage:  true,
+			NoJunkCode: true,
 		}
 		ctx, err := encoder.Encode(shellcode, 32, opts)
 		require.NoError(t, err)
@@ -167,7 +167,7 @@ func TestMinifyMode(t *testing.T) {
 		opts := &Options{
 			MinifyMode: true,
 			NoIterator: true,
-			NoGarbage:  true,
+			NoJunkCode: true,
 		}
 		ctx, err := encoder.Encode(shellcode, 64, opts)
 		require.NoError(t, err)
