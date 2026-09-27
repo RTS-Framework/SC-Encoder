@@ -167,6 +167,7 @@ func (enc *Encoder) buildJunkCode(src string) (string, error) {
 	tpl, err := template.New("junk_code").Funcs(template.FuncMap{
 		"db":  toDB,
 		"hex": toHex,
+		"iji": enc.insertJunkInst,
 	}).Parse(src)
 	if err != nil {
 		return "", fmt.Errorf("invalid junk code template: %s", err)
@@ -177,18 +178,34 @@ func (enc *Encoder) buildJunkCode(src string) (string, error) {
 	WORD := make(map[string]int16)
 	DWORD := make(map[string]int32)
 	QWORD := make(map[string]int64)
+	Less16 := make(map[string]int)
 	Less32 := make(map[string]int)
 	Less64 := make(map[string]int)
 	for i := 'A'; i <= 'Z'; i++ {
 		b := enc.rand.Intn(2) == 0
-		switches[string(i)] = b
+		i8 := int8(enc.rand.Int31() % 128)
+		i16 := int16(enc.rand.Int31() % 32768)
+		i32 := enc.rand.Int31()
+		i64 := enc.rand.Int63()
+		l16 := 1 + enc.rand.Intn(15)
+		l32 := 1 + enc.rand.Intn(31)
+		l64 := 1 + enc.rand.Intn(63)
+		switches[string(i+0x00)] = b
 		switches[string(i+0x20)] = b
-		BYTE[string(i)] = int8(enc.rand.Int31() % 128)
-		WORD[string(i)] = int16(enc.rand.Int31() % 32768)
-		DWORD[string(i)] = enc.rand.Int31()
-		QWORD[string(i)] = enc.rand.Int63()
-		Less32[string(i)] = enc.rand.Intn(32)
-		Less64[string(i)] = enc.rand.Intn(64)
+		BYTE[string(i+0x00)] = i8
+		BYTE[string(i+0x20)] = i8
+		WORD[string(i+0x00)] = i16
+		WORD[string(i+0x20)] = i16
+		DWORD[string(i+0x00)] = i32
+		DWORD[string(i+0x20)] = i32
+		QWORD[string(i+0x00)] = i64
+		QWORD[string(i+0x20)] = i64
+		Less16[string(i+0x00)] = l16
+		Less16[string(i+0x20)] = l16
+		Less32[string(i+0x00)] = l32
+		Less32[string(i+0x20)] = l32
+		Less64[string(i+0x00)] = l64
+		Less64[string(i+0x20)] = l64
 	}
 	ctx := junkCodeCtx{
 		Reg:    enc.buildRandomRegisterMap(),
@@ -197,6 +214,7 @@ func (enc *Encoder) buildJunkCode(src string) (string, error) {
 		WORD:   WORD,
 		DWORD:  DWORD,
 		QWORD:  QWORD,
+		Less16: Less16,
 		Less32: Less32,
 		Less64: Less64,
 	}
