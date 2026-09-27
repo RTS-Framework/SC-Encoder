@@ -1,9 +1,9 @@
-# SSCE
+# SC-Encoder
 A simple shellcode encoder, it supports custom decoder and loader templates.
 
 ## Usage
 ```bash
-ssce -arch 64 -i shellcode.bin -o shellcode_x64.bin
+sc-encoder -arch 64 -i shellcode.bin -o shellcode_x64.bin
 ```
 
 ## Development
@@ -15,32 +15,31 @@ import (
     "fmt"
     "os"
 
-    "github.com/RTS-Framework/SSCE"
+    "github.com/RTS-Framework/SC-Encoder"
 )
 
 func main() {
-    encoder := ssce.NewEncoder()
-
+    enc := encoder.NewEncoder()
+    
     shellcode, err := os.ReadFile("shellcode.bin")
     checkError(err)
 
-    opts := ssce.Options{
+    opts := encoder.Options{
         NumIterator: 4,
         NumTailInst: 64,
         MinifyMode:  false,
         SaveContext: false,
         EraseInst:   false,
         NoIterator:  false,
-        NoGarbage:   false,
+        NoJunkCode:  false,
     }
-
-    ctx, err := encoder.Encode(shellcode, 64, &opts)
+    ctx, err := enc.Encode(shellcode, 64, &opts)
     checkError(err)
 
     out := hex.EncodeToString(ctx.Output)
     fmt.Println(out)
 
-    err = encoder.Close()
+    err = enc.Close()
     checkError(err)
 }
 
@@ -51,5 +50,16 @@ func checkError(err error) {
     }
 }
 ```
+
 ## Disclaimer
-This project is for research purposes only and is strictly prohibited from being used for illegal purposes.
+This project is developed solely for security research, educational purposes, and authorized penetration testing.
+Any use for illegal activities, unauthorized access to computer systems, or malicious purposes is strictly prohibited.
+
+By using this project, you agree that:
+
+1. You will only use it in environments you own or have explicit authorization to test.
+2. You are solely responsible for ensuring compliance with all applicable local, state, national, and international laws and regulations.
+3. The authors and contributors assume no liability and are not responsible for any misuse or damage caused by this project.
+4. You understand that unauthorized use of computer systems is a criminal offense in most jurisdictions
+
+This software is provided "as is" without warranty of any kind, express or implied. Use at your own risk.
