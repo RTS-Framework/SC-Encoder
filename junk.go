@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"strings"
 	"text/template"
 )
+
+const maxJunkInstShortSize = 7
 
 // The role of the junk code is to make the instruction sequence
 // as featureless as possible.
@@ -68,10 +71,18 @@ func (enc *Encoder) insertJunkInst() string {
 	if enc.opts.NoJunkCode {
 		return ""
 	}
-	return ";" + toDB(enc.buildJunkInst())
+	return ";" + toDB(enc.buildJunkInst(false))
 }
 
-func (enc *Encoder) buildJunkInst() []byte {
+// the output garbage instruction length is <= 7 bytes.
+func (enc *Encoder) insertJunkInstShort() []byte {
+	if enc.opts.NoJunkCode {
+		return nil
+	}
+	return enc.buildJunkInst(true)
+}
+
+func (enc *Encoder) buildJunkInst(short bool) []byte {
 	if enc.opts.NoJunkCode {
 		return nil
 	}
@@ -93,9 +104,9 @@ func (enc *Encoder) buildJunkInst() []byte {
 	case 1:
 		return enc.junkMultiByteNOP()
 	case 2:
-		return enc.junkJumpShort()
+		return enc.junkJumpShort(2, 5)
 	default:
-		return enc.junkTemplate()
+		return enc.junkTemplate(short)
 	}
 }
 
@@ -110,15 +121,19 @@ func (enc *Encoder) junkMultiByteNOP() []byte {
 	return nop
 }
 
-func (enc *Encoder) junkJumpShort() []byte {
-	numInt3 := 1 + enc.rand.Intn(8)
-	jmp := make([]byte, 0, 10)
-	jmp = append(jmp, 0xEB, byte(numInt3)) // #nosec G115
-	jmp = append(jmp, bytes.Repeat([]byte{0xCC}, numInt3)...)
+// 0xEB, rel, [min, max] random bytes.
+func (enc *Encoder) junkJumpShort(min, max int) []byte {
+	if min < 1 || max > 127 {
+		panic("garbage jump short length out of range")
+	}
+	jmp := make([]byte, 0, 1+max/2)
+	offset := min + enc.rand.Intn(max-min+1)
+	jmp = append(jmp, 0xEB, byte(offset)) // #nosec G115
+	jmp = append(jmp, enc.randBytes(offset)...)
 	return jmp
 }
 
-func (enc *Encoder) junkTemplate() []byte {
+func (enc *Encoder) junkTemplate(short bool) []byte {
 	var junkCodes []string
 	switch enc.arch {
 	case 32:
@@ -129,6 +144,12 @@ func (enc *Encoder) junkTemplate() []byte {
 	// select random junk code template
 	idx := enc.rand.Intn(len(junkCodes))
 	src := junkCodes[idx]
+	// if source contains the mark about insertJunkInst,
+	// not assemble it and return for build faster.
+	if short && strings.Contains(src, "{{iji}}") {
+		return enc.junkMultiByteNOP()
+	}
+	// assemble junk code
 	asm, err := enc.buildJunkCode(src)
 	if err != nil {
 		panic(err)
@@ -136,13 +157,15 @@ func (enc *Encoder) junkTemplate() []byte {
 	if len(asm) == 0 {
 		panic("empty output junk code assembly source")
 	}
-	// assemble junk code
 	inst, err := enc.assemble(asm)
 	if err != nil {
 		panic(fmt.Sprintf("failed to assemble junk code: %s", err))
 	}
 	if len(inst) == 0 {
 		panic("assemble junk code source with unknown error")
+	}
+	if short && len(inst) > maxJunkInstShortSize {
+		return enc.junkMultiByteNOP()
 	}
 	return inst
 }
