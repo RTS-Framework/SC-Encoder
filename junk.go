@@ -71,11 +71,25 @@ func (enc *Encoder) insertJunkInst() string {
 	if enc.opts.NoJunkCode {
 		return ""
 	}
-	return ";" + toDB(enc.buildJunkInst(false))
+	return ";" + toDB(enc.genJunkInst())
 }
 
-// the output garbage instruction length is <= 7 bytes.
-func (enc *Encoder) insertJunkInstShort() []byte {
+func (enc *Encoder) insertJunkInstShort() string {
+	if enc.opts.NoJunkCode {
+		return ""
+	}
+	return ";" + toDB(enc.genJunkInstShort())
+}
+
+func (enc *Encoder) genJunkInst() []byte {
+	if enc.opts.NoJunkCode {
+		return nil
+	}
+	return enc.buildJunkInst(false)
+}
+
+// the output junk instruction length is <= 7 bytes.
+func (enc *Encoder) genJunkInstShort() []byte {
 	if enc.opts.NoJunkCode {
 		return nil
 	}
@@ -127,7 +141,7 @@ func (enc *Encoder) junkMultiByteNOP() []byte {
 // 0xEB, rel, [min, max] random bytes.
 func (enc *Encoder) junkJumpShort(min, max int) []byte {
 	if min < 1 || max > 127 {
-		panic("garbage jump short length out of range")
+		panic("junk jump short length out of range")
 	}
 	jmp := make([]byte, 0, 1+max/2)
 	offset := min + enc.rand.Intn(max-min+1)
