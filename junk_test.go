@@ -14,6 +14,12 @@ import (
 func TestJunkCode(t *testing.T) {
 	encoder := NewEncoder()
 
+	opts := &Options{
+		EraseInst:  true,
+		NoIterator: false,
+		NoJunkCode: false,
+	}
+
 	t.Run("x86", func(t *testing.T) {
 		asm := ".code32\n"
 		asm += "mov eax, dword ptr [esp+4]\n"
@@ -27,11 +33,6 @@ func TestJunkCode(t *testing.T) {
 		err = engine.Close()
 		require.NoError(t, err)
 
-		opts := &Options{
-			EraseInst:  true,
-			NoIterator: false,
-			NoJunkCode: false,
-		}
 		ctx, err := encoder.Encode(shellcode, 32, opts)
 		require.NoError(t, err)
 		spew.Dump(ctx)
@@ -73,11 +74,6 @@ func TestJunkCode(t *testing.T) {
 		err = engine.Close()
 		require.NoError(t, err)
 
-		opts := &Options{
-			EraseInst:  true,
-			NoIterator: false,
-			NoJunkCode: false,
-		}
 		ctx, err := encoder.Encode(shellcode, 64, opts)
 		require.NoError(t, err)
 		spew.Dump(ctx)
@@ -97,6 +93,42 @@ func TestJunkCode(t *testing.T) {
 		sc := unsafe.Slice((*byte)(unsafe.Pointer(addr)), len(ctx.Output))
 		require.False(t, bytes.Contains(sc, shellcode))
 		testFindSignature(t, sc)
+	})
+
+	shellcode := bytes.Clone(testAddX86)
+
+	t.Run("invalid template", func(t *testing.T) {
+		opts.JunkCodeX86 = []string{"{{.Invalid}}"}
+
+		ctx, err := encoder.Encode(shellcode, 32, opts)
+		require.ErrorContains(t, err, "failed to build junk code assembly source")
+		require.Nil(t, ctx)
+	})
+
+	t.Run("empty output", func(t *testing.T) {
+		opts.JunkCodeX86 = []string{""}
+
+		ctx, err := encoder.Encode(shellcode, 32, opts)
+		require.ErrorContains(t, err, "empty output junk code assembly source")
+		require.Nil(t, ctx)
+	})
+
+	t.Run("invalid source", func(t *testing.T) {
+		opts.JunkCodeX86 = []string{"invalid"}
+
+		ctx, err := encoder.Encode(shellcode, 32, opts)
+		errStr := "failed to assemble junk code: failed to assemble: "
+		errStr += "Invalid mnemonic (KS_ERR_ASM_MNEMONICFAIL)"
+		require.ErrorContains(t, err, errStr)
+		require.Nil(t, ctx)
+	})
+
+	t.Run("unknown error", func(t *testing.T) {
+		opts.JunkCodeX86 = []string{"// unknown op"}
+
+		ctx, err := encoder.Encode(shellcode, 32, opts)
+		require.ErrorContains(t, err, "assemble junk code source with unknown error")
+		require.Nil(t, ctx)
 	})
 
 	err := encoder.Close()
