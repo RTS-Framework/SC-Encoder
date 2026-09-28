@@ -7,8 +7,8 @@
 // "0x00, 0x00, 0x00" and "0xFF, 0xFF, 0xFF"
 // about call or jmp instructions
 
-// igi means insert garbage instruction
-// igs means insert garbage instruction with short version
+// iji means insert junk instruction
+// ijs means insert junk instruction with short version
 
 // rax store the random seed
 // rbx store the crypto key
@@ -73,7 +73,7 @@ xor_shift_32:
   xor {{.Reg.eax}}, {{.Reg.edx}}               {{igs}}
   jmp ret_1                                    {{igs}}
 
- restore:
+restore:
   // restore context
   popfq                                        {{igi}}
   pop {{.Reg.rdi}}                             {{igi}}
