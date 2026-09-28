@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGarbage(t *testing.T) {
+func TestJunkCode(t *testing.T) {
 	encoder := NewEncoder()
 
 	t.Run("x86", func(t *testing.T) {
@@ -30,7 +30,7 @@ func TestGarbage(t *testing.T) {
 		opts := &Options{
 			EraseInst:  true,
 			NoIterator: false,
-			NoGarbage:  false,
+			NoJunkCode: false,
 		}
 		ctx, err := encoder.Encode(shellcode, 32, opts)
 		require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestGarbage(t *testing.T) {
 		opts := &Options{
 			EraseInst:  true,
 			NoIterator: false,
-			NoGarbage:  false,
+			NoJunkCode: false,
 		}
 		ctx, err := encoder.Encode(shellcode, 64, opts)
 		require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestGarbage(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestGarbageJumpShort(t *testing.T) {
+func TestJunkJumpShort(t *testing.T) {
 	encoder := NewEncoder()
 	encoder.opts = new(Options)
 
@@ -111,7 +111,7 @@ func TestGarbageJumpShort(t *testing.T) {
 		encoder.arch = 32
 
 		for i := 0; i < 1000; i++ {
-			size := len(encoder.garbageJumpShort(2, 5))
+			size := len(encoder.junkJumpShort(2, 5))
 			require.True(t, size >= 2+2 && size <= 5+2)
 		}
 	})
@@ -120,7 +120,7 @@ func TestGarbageJumpShort(t *testing.T) {
 		encoder.arch = 64
 
 		for i := 0; i < 1000; i++ {
-			size := len(encoder.garbageJumpShort(2, 5))
+			size := len(encoder.junkJumpShort(2, 5))
 			require.True(t, size >= 2+2 && size <= 5+2)
 		}
 	})
@@ -129,7 +129,27 @@ func TestGarbageJumpShort(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestGarbageTemplateFuzz(t *testing.T) {
+func TestJunkTemplate(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
+		testJunkTemplate(t, 10, false)
+	})
+
+	t.Run("short", func(t *testing.T) {
+		testJunkTemplate(t, 10, true)
+	})
+}
+
+func TestJunkTemplateFuzz(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
+		testJunkTemplate(t, 1000, false)
+	})
+
+	t.Run("short", func(t *testing.T) {
+		testJunkTemplate(t, 1000, true)
+	})
+}
+
+func testJunkTemplate(t *testing.T, times int, short bool) {
 	t.Run("x86", func(t *testing.T) {
 		encoder := NewEncoder()
 		encoder.arch = 32
@@ -137,8 +157,8 @@ func TestGarbageTemplateFuzz(t *testing.T) {
 		err := encoder.initAssembler()
 		require.NoError(t, err)
 
-		for i := 0; i < 1000; i++ {
-			data := encoder.garbageTemplate()
+		for i := 0; i < times; i++ {
+			data := encoder.junkTemplate(short)
 			require.NotEmpty(t, data)
 		}
 
@@ -153,8 +173,8 @@ func TestGarbageTemplateFuzz(t *testing.T) {
 		err := encoder.initAssembler()
 		require.NoError(t, err)
 
-		for i := 0; i < 1000; i++ {
-			data := encoder.garbageTemplate()
+		for i := 0; i < times; i++ {
+			data := encoder.junkTemplate(short)
 			require.NotEmpty(t, data)
 		}
 
