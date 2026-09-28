@@ -2,8 +2,126 @@ package encoder
 
 import (
 	"bytes"
+	"embed"
 	"encoding/binary"
+	"fmt"
+	"math"
+	"text/template"
 )
+
+// just for prevent [import _ "embed"] :)
+var _ embed.FS
+
+// The role of the decoder is to eliminate the instruction
+// sequence features as much as possible.
+var (
+	//go:embed decoder/decoder_x86.asm
+	defaultDecoderX86 string
+
+	//go:embed decoder/decoder_x64.asm
+	defaultDecoderX64 string
+)
+
+type decoderCtx struct {
+	Seed any
+	Key  any
+
+	NumLoopStub  int32
+	NumLoopMaskA int32
+	NumLoopMaskB int32
+
+	OffsetT int32
+	OffsetA int32
+	OffsetS int32
+
+	// for replace registers
+	Reg map[string]string
+
+	// for prevent call short
+	Padding bool
+	PadData []byte
+}
+
+func (enc *Encoder) addMiniDecoder(input []byte) ([]byte, error) {
+	var miniDecoder string
+	switch enc.arch {
+	case 32:
+		miniDecoder = enc.getMiniDecoderX86()
+	case 64:
+		miniDecoder = enc.getMiniDecoderX64()
+	}
+	asm, body, err := enc.buildMiniDecoder(miniDecoder, input)
+	if err != nil {
+		return nil, err
+	}
+	inst, err := enc.assemble(asm)
+	if err != nil {
+		return nil, err
+	}
+	return append(inst, body...), nil
+}
+
+func (enc *Encoder) getMiniDecoderX86() string {
+	if enc.opts.MiniDecoderX86 != "" {
+		return enc.opts.MiniDecoderX86
+	}
+	return defaultDecoderX86
+}
+
+func (enc *Encoder) getMiniDecoderX64() string {
+	if enc.opts.MiniDecoderX64 != "" {
+		return enc.opts.MiniDecoderX64
+	}
+	return defaultDecoderX64
+}
+
+func (enc *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []byte, error) {
+	// parse mini decoder template
+	tpl, err := template.New("mini_decoder").Funcs(template.FuncMap{
+		"db":  toDB,
+		"hex": toHex,
+		"iji": enc.insertJunkInst,
+		"ijs": enc.insertJunkInstShort,
+	}).Parse(decoder)
+	if err != nil {
+		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
+	}
+	seed := enc.rand.Uint32()
+	key := enc.rand.Uint32()
+	body := enc.xsrl(input, seed, key)
+	numLoopMaskA := enc.rand.Int31()
+	numLoopMaskB := enc.rand.Int31()
+	numLoopStub := int32(len(body)/4) ^ numLoopMaskA ^ numLoopMaskB // #nosec G115
+	offsetT := enc.rand.Int31n(math.MaxInt32/4 - 4096)
+	offsetA := enc.rand.Int31n(math.MaxInt32/4 - 8192)
+	offsetS := offsetT + offsetA
+	ctx := decoderCtx{
+		Seed: seed,
+		Key:  key,
+
+		NumLoopStub:  numLoopStub,
+		NumLoopMaskA: numLoopMaskA,
+		NumLoopMaskB: numLoopMaskB,
+
+		OffsetT: offsetT,
+		OffsetA: offsetA,
+		OffsetS: offsetS,
+
+		Reg: enc.buildRandomRegisterMap(),
+	}
+	// add padding data at tail of mini decoder
+	if !enc.opts.MinifyMode {
+		ctx.Padding = true
+		ctx.PadData = enc.randBytes(8 + enc.rand.Intn(48))
+	}
+	// build source from template and assemble it
+	buf := bytes.NewBuffer(make([]byte, 0, 512))
+	err = tpl.Execute(buf, &ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to build assembly source: %s", err)
+	}
+	return buf.String(), body, nil
+}
 
 func (enc *Encoder) decoderStub() []byte {
 	var decoder []byte
