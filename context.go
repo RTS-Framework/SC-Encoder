@@ -72,11 +72,11 @@ func (enc *Encoder) saveContext() []byte {
 	inst := make([]byte, 0, 128)
 	for i := 0; i < len(fp); i++ {
 		inst = append(inst, fp[i]...)
-		inst = append(inst, enc.insertJunkInstShort()...)
+		inst = append(inst, enc.genJunkInstShort()...)
 	}
 	for i := 0; i < len(save); i++ {
 		inst = append(inst, save[enc.contextSeq[i]]...)
-		inst = append(inst, enc.insertJunkInstShort()...)
+		inst = append(inst, enc.genJunkInstShort()...)
 	}
 	return inst
 }
@@ -97,11 +97,11 @@ func (enc *Encoder) restoreContext() []byte {
 	inst := make([]byte, 0, 128)
 	for i := len(restore) - 1; i >= 0; i-- {
 		inst = append(inst, restore[enc.contextSeq[i]]...)
-		inst = append(inst, enc.insertJunkInstShort()...)
+		inst = append(inst, enc.genJunkInstShort()...)
 	}
 	for i := 0; i < len(fp); i++ {
 		inst = append(inst, fp[i]...)
-		inst = append(inst, enc.insertJunkInstShort()...)
+		inst = append(inst, enc.genJunkInstShort()...)
 	}
 	return inst
 }
