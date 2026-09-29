@@ -4,8 +4,8 @@ import (
 	"fmt"
 )
 
-// InspectMiniDecoderTemplate is used to test mini decoder template.
-func InspectMiniDecoderTemplate(arch int, src string) (string, []byte, error) {
+// InspectDecoderTemplate is used to test decoder template.
+func InspectDecoderTemplate(arch int, src string) (string, []byte, error) {
 	switch arch {
 	case 32, 64:
 	default:
@@ -20,13 +20,13 @@ func InspectMiniDecoderTemplate(arch int, src string) (string, []byte, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	asm, _, err := encoder.buildMiniDecoder(src, nil)
+	asm, _, err := encoder.buildDecoder(src, nil)
 	if err != nil {
 		return "", nil, err
 	}
 	inst, err := encoder.assemble(asm)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to assemble mini decoder: %s", err)
+		return "", nil, fmt.Errorf("failed to assemble decoder: %s", err)
 	}
 	err = encoder.Close()
 	if err != nil {
