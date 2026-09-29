@@ -101,7 +101,7 @@ func TestJunkCode(t *testing.T) {
 		opts.JunkCodeX86 = []string{"{{.Invalid}}"}
 
 		ctx, err := encoder.Encode(shellcode, 32, opts)
-		require.ErrorContains(t, err, "failed to build junk code assembly source")
+		require.ErrorContains(t, err, "failed to build junk code source")
 		require.Nil(t, ctx)
 	})
 
@@ -109,7 +109,7 @@ func TestJunkCode(t *testing.T) {
 		opts.JunkCodeX86 = []string{""}
 
 		ctx, err := encoder.Encode(shellcode, 32, opts)
-		require.ErrorContains(t, err, "empty output junk code assembly source")
+		require.ErrorContains(t, err, "empty output junk code source")
 		require.Nil(t, ctx)
 	})
 
