@@ -23,34 +23,38 @@ var (
 )
 
 type decoderCtx struct {
-	Seed any
-	Key  any
+	// for replace registers
+	Reg  map[string]string
+	RegV map[string]string
+	RegN map[string]string
 
+	// unshuffle seed
+	Seed any
+
+	// for prevent continuous 0x00
 	NumLoopStub  int32
 	NumLoopMaskA int32
 	NumLoopMaskB int32
 
+	// T + A = S
 	OffsetT int32
 	OffsetA int32
 	OffsetS int32
-
-	// for replace registers
-	Reg map[string]string
 
 	// for prevent call short
 	Padding bool
 	PadData []byte
 }
 
-func (enc *Encoder) addMiniDecoder(input []byte) ([]byte, error) {
-	var miniDecoder string
+func (enc *Encoder) addDecoder(input []byte) ([]byte, error) {
+	var decoder string
 	switch enc.arch {
 	case 32:
-		miniDecoder = enc.getMiniDecoderX86()
+		decoder = enc.getDecoderX86()
 	case 64:
-		miniDecoder = enc.getMiniDecoderX64()
+		decoder = enc.getDecoderX64()
 	}
-	asm, body, err := enc.buildMiniDecoder(miniDecoder, input)
+	asm, body, err := enc.buildDecoder(decoder, input)
 	if err != nil {
 		return nil, err
 	}
@@ -61,23 +65,9 @@ func (enc *Encoder) addMiniDecoder(input []byte) ([]byte, error) {
 	return append(inst, body...), nil
 }
 
-func (enc *Encoder) getMiniDecoderX86() string {
-	if enc.opts.MiniDecoderX86 != "" {
-		return enc.opts.MiniDecoderX86
-	}
-	return defaultDecoderX86
-}
-
-func (enc *Encoder) getMiniDecoderX64() string {
-	if enc.opts.MiniDecoderX64 != "" {
-		return enc.opts.MiniDecoderX64
-	}
-	return defaultDecoderX64
-}
-
-func (enc *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []byte, error) {
-	// parse mini decoder template
-	tpl, err := template.New("mini_decoder").Funcs(template.FuncMap{
+func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, error) {
+	// parse decoder template
+	tpl, err := template.New("decoder").Funcs(template.FuncMap{
 		"db":  toDB,
 		"hex": toHex,
 		"iji": enc.insertJunkInst,
@@ -86,9 +76,14 @@ func (enc *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []by
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
 	}
-	seed := enc.rand.Uint32()
-	key := enc.rand.Uint32()
-	body := enc.xsrl(input, seed, key)
+	var seed any
+	switch enc.arch {
+	case 32:
+		seed = enc.rand.Uint32()
+	case 64:
+		seed = enc.rand.Uint64()
+	}
+	body := enc.shuffle(input, seed)
 	numLoopMaskA := enc.rand.Int31()
 	numLoopMaskB := enc.rand.Int31()
 	numLoopStub := int32(len(body)/4) ^ numLoopMaskA ^ numLoopMaskB // #nosec G115
@@ -97,7 +92,6 @@ func (enc *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []by
 	offsetS := offsetT + offsetA
 	ctx := decoderCtx{
 		Seed: seed,
-		Key:  key,
 
 		NumLoopStub:  numLoopStub,
 		NumLoopMaskA: numLoopMaskA,
@@ -109,7 +103,7 @@ func (enc *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []by
 
 		Reg: enc.buildRandomRegisterMap(),
 	}
-	// add padding data at tail of mini decoder
+	// add padding data at tail of decoder
 	if !enc.opts.MinifyMode {
 		ctx.Padding = true
 		ctx.PadData = enc.randBytes(8 + enc.rand.Intn(48))
@@ -121,6 +115,54 @@ func (enc *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []by
 		return "", nil, fmt.Errorf("failed to build assembly source: %s", err)
 	}
 	return buf.String(), body, nil
+}
+
+func (enc *Encoder) getDecoderX86() string {
+	if enc.opts.DecoderX86 != "" {
+		return enc.opts.DecoderX86
+	}
+	return defaultDecoderX86
+}
+
+func (enc *Encoder) getDecoderX64() string {
+	if enc.opts.DecoderX64 != "" {
+		return enc.opts.DecoderX64
+	}
+	return defaultDecoderX64
+}
+
+func (enc *Encoder) shuffle(input []byte, seed any) []byte {
+	data := bytes.Clone(input)
+	var output []byte
+	switch enc.arch {
+	case 32:
+		output = enc.shuffle32(data, seed.(uint32))
+	case 64:
+		output = enc.shuffle64(data, seed.(uint64))
+	}
+	return output
+}
+
+func (enc *Encoder) shuffle32(data []byte, seed uint32) []byte {
+	for i := len(data) - 1; i > 0; i-- {
+		j := seed % uint32(i+1)
+		t := data[i]
+		data[i] = data[j]
+		data[j] = t
+		seed = xorShift32(seed)
+	}
+	return data
+}
+
+func (enc *Encoder) shuffle64(data []byte, seed uint64) []byte {
+	for i := len(data) - 1; i > 0; i-- {
+		j := seed % uint64(i+1)
+		t := data[i]
+		data[i] = data[j]
+		data[j] = t
+		seed = xorShift64(seed)
+	}
+	return data
 }
 
 func (enc *Encoder) decoderStub() []byte {
@@ -138,9 +180,9 @@ func (enc *Encoder) eraserStub() []byte {
 	var eraser []byte
 	switch enc.arch {
 	case 32:
-		eraser = eraserX86
+		// eraser = eraserX86
 	case 64:
-		eraser = eraserX64
+		// eraser = eraserX64
 	}
 	return enc.miniXOR(eraser, enc.stubKey)
 }
