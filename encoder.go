@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/For-ACGN/go-keystone"
@@ -30,43 +31,42 @@ type Encoder struct {
 
 	// save and restore context
 	contextSeq []int
+
+	mu sync.Mutex
 }
 
 // Options contains options about encode shellcode.
 type Options struct {
-	// the number of iterate.
+	// the number of iterator about decoder, if it is zero, it will be random.
 	NumIterate int `toml:"num_iterate" json:"num_iterate"`
 
 	// the size of the junk instruction at tail.
 	NumTailInst int `toml:"num_tail_inst" json:"num_tail_inst"`
 
-	// only use the mini loader, not use loader
-	// for erase shellcode and more feature.
+	// only use the decoder, not use the loader for enable more feature.
 	MinifyMode bool `toml:"minify_mode" json:"minify_mode"`
 
 	// save and restore context after call shellcode.
 	SaveContext bool `toml:"save_context" json:"save_context"`
 
 	// erase loader instruction and shellcode after call it.
+	// if MinifyMode is enabled, it will be ignored.
 	EraseInst bool `toml:"erase_inst" json:"erase_inst"`
 
-	// disable iterator, not recommend.
+	// disable iterator about decoder.
 	NoIterator bool `toml:"no_iterator" json:"no_iterator"`
 
-	// disable junk instruction, not recommend.
+	// disable junk instruction.
 	NoJunkCode bool `toml:"no_junk_code" json:"no_junk_code"`
 
 	// specify a random seed for encoder.
 	RandSeed int64 `toml:"rand_seed" json:"rand_seed"`
 
-	// trim the seed at the tail of output.
-	TrimSeed bool `toml:"trim_seed" json:"trim_seed"`
+	// specify the x86 decoder template.
+	DecoderX86 string `toml:"decoder_x86" json:"decoder_x86"`
 
-	// specify the x86 mini decoder template.
-	MiniDecoderX86 string `toml:"mini_decoder_x86" json:"mini_decoder_x86"`
-
-	// specify the x64 mini decoder template.
-	MiniDecoderX64 string `toml:"mini_decoder_x64" json:"mini_decoder_x64"`
+	// specify the x64 decoder template.
+	DecoderX64 string `toml:"decoder_x64" json:"decoder_x64"`
 
 	// specify the x86 loader template.
 	LoaderX86 string `toml:"loader_x86" json:"loader_x86"`
@@ -83,13 +83,11 @@ type Options struct {
 
 // Context contains the output and context data in Encode.
 type Context struct {
-	Output      []byte `json:"output"`
-	Seed        int64  `json:"seed"`
-	NumIterate  int    `json:"num_iterate"`
-	MinifyMode  bool   `json:"minify_mode"`
-	NoJunkCode  bool   `json:"no_junk_code"`
-	SaveContext bool   `json:"save_context"`
-	EraseInst   bool   `json:"erase_inst"`
+	Output  []byte `json:"output"`
+	Seed    int64  `json:"seed"`
+	NumIter int    `json:"num_iter"`
+	Decoder string `json:"decoder"`
+	Loader  string `json:"loader"`
 }
 
 // NewEncoder is used to create a simple shellcode encoder.
@@ -126,6 +124,8 @@ func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Cont
 	if opts == nil {
 		opts = new(Options)
 	}
+	enc.mu.Lock()
+	defer enc.mu.Unlock()
 	enc.arch = arch
 	enc.opts = opts
 	// initialize keystone engine
@@ -136,7 +136,17 @@ func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Cont
 	// set random seed
 	seed := opts.RandSeed
 	if seed == 0 {
-		seed = enc.rand.Int63()
+		buf := make([]byte, 8)
+		_, err = cr.Read(buf)
+		if err == nil {
+			seed = int64(binary.LittleEndian.Uint64(buf)) // #nosec G115
+		} else {
+			seed = enc.rand.Int63()
+		}
+	}
+	// forced zeroing of the sign bit
+	if seed < 0 {
+		seed = seed & 0x7FFFFFFFFFFFFFFF
 	}
 	enc.rand.Seed(seed)
 	// encode the raw shellcode and add loader
@@ -173,20 +183,11 @@ func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Cont
 	output = append(output, enc.randBytes(opts.NumTailInst)...)
 	// append garbage data to the output shellcode prefix
 	output = append(enc.buildJunkInst(false), output...)
-	// append the random seed to tail
-	if !opts.TrimSeed {
-		buf := binary.BigEndian.AppendUint64(nil, uint64(seed)) // #nosec G115
-		output = append(output, buf...)
-	}
 	// build encode context for test and debug
 	ctx = &Context{
-		Output:      output,
-		Seed:        seed,
-		NumIterate:  numIter,
-		MinifyMode:  opts.MinifyMode,
-		NoJunkCode:  opts.NoJunkCode,
-		SaveContext: opts.SaveContext,
-		EraseInst:   opts.EraseInst,
+		Output:  output,
+		Seed:    seed,
+		NumIter: numIter,
 	}
 	return ctx, nil
 }
