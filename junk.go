@@ -172,7 +172,7 @@ func (enc *Encoder) junkTemplate(short bool) []byte {
 		panic(err)
 	}
 	if len(asm) == 0 {
-		panic("empty output junk code assembly source")
+		panic("empty output junk code source")
 	}
 	inst, err := enc.assemble(asm)
 	if err != nil {
@@ -203,7 +203,7 @@ func (enc *Encoder) getJunkCodeX64() []string {
 
 // #nosec G115
 func (enc *Encoder) buildJunkCode(src string) (string, error) {
-	// process assembly source
+	// process template
 	tpl, err := template.New("junk_code").Funcs(template.FuncMap{
 		"db":  toDB,
 		"hex": toHex,
@@ -261,7 +261,7 @@ func (enc *Encoder) buildJunkCode(src string) (string, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, 512))
 	err = tpl.Execute(buf, &ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to build junk code assembly source: %s", err)
+		return "", fmt.Errorf("failed to build junk code source: %s", err)
 	}
 	return buf.String(), nil
 }
