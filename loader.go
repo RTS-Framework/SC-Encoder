@@ -75,6 +75,15 @@ func (enc *Encoder) getLoaderX64() string {
 }
 
 func (enc *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte, error) {
+	// parse loader template
+	tpl, err := template.New("loader").Funcs(template.FuncMap{
+		"db":  toDB,
+		"hex": toHex,
+		"iji": enc.insertJunkInst,
+	}).Parse(loader)
+	if err != nil {
+		return "", nil, fmt.Errorf("invalid loader template: %s", err)
+	}
 	// append instructions for "IV" about encoder
 	shellcode = append(enc.buildJunkInst(false), shellcode...)
 	// append instructions to tail for prevent brute-force
@@ -89,24 +98,15 @@ func (enc *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte
 	switch enc.arch {
 	case 32:
 		stubKey = enc.rand.Uint32()
-		eraserLen = len(eraserX86) + enc.rand.Intn(len(cryptoKey))
+		// eraserLen = len(eraserX86) + enc.rand.Intn(len(cryptoKey))
 		shellcode = encrypt32(shellcode, cryptoKey)
 	case 64:
 		stubKey = enc.rand.Uint64()
-		eraserLen = len(eraserX64) + enc.rand.Intn(len(cryptoKey))
+		// eraserLen = len(eraserX64) + enc.rand.Intn(len(cryptoKey))
 		shellcode = encrypt64(shellcode, cryptoKey)
 	}
 	enc.key = cryptoKey
 	enc.stubKey = stubKey
-	// parse loader template
-	tpl, err := template.New("loader").Funcs(template.FuncMap{
-		"db":  toDB,
-		"hex": toHex,
-		"iji": enc.insertJunkInst,
-	}).Parse(loader)
-	if err != nil {
-		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
-	}
 	ctx := loaderCtx{
 		StubKey:        stubKey,
 		DecoderStub:    enc.decoderStub(),
@@ -125,7 +125,7 @@ func (enc *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
 	err = tpl.Execute(buf, &ctx)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to build assembly source: %s", err)
+		return "", nil, fmt.Errorf("failed to build loader source: %s", err)
 	}
 	return buf.String(), shellcode, nil
 }
