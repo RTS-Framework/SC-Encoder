@@ -1,15 +1,12 @@
 package encoder
 
 import (
-	"bytes"
 	cr "crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 	"math/rand"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/For-ACGN/go-keystone"
@@ -33,9 +30,6 @@ type Encoder struct {
 
 	// save and restore context
 	contextSeq []int
-
-	// for select random register
-	regBox []string
 }
 
 // Options contains options about encode shellcode.
@@ -43,7 +37,7 @@ type Options struct {
 	// the number of iterate.
 	NumIterate int `toml:"num_iterate" json:"num_iterate"`
 
-	// the size of the garbage instruction at tail.
+	// the size of the junk instruction at tail.
 	NumTailInst int `toml:"num_tail_inst" json:"num_tail_inst"`
 
 	// only use the mini loader, not use loader
@@ -59,7 +53,7 @@ type Options struct {
 	// disable iterator, not recommend.
 	NoIterator bool `toml:"no_iterator" json:"no_iterator"`
 
-	// disable garbage instruction, not recommend.
+	// disable junk instruction, not recommend.
 	NoJunkCode bool `toml:"no_junk_code" json:"no_junk_code"`
 
 	// specify a random seed for encoder.
@@ -93,7 +87,7 @@ type Context struct {
 	Seed        int64  `json:"seed"`
 	NumIterate  int    `json:"num_iterate"`
 	MinifyMode  bool   `json:"minify_mode"`
-	NoGarbage   bool   `json:"no_garbage"`
+	NoJunkCode  bool   `json:"no_junk_code"`
 	SaveContext bool   `json:"save_context"`
 	EraseInst   bool   `json:"erase_inst"`
 }
@@ -169,7 +163,7 @@ func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Cont
 			return nil, err
 		}
 	}
-	// padding garbage at the tail
+	// padding junk code at the tail
 	if !opts.NoJunkCode {
 		times := 8 + enc.rand.Intn((numIter+1)*4)
 		size := enc.rand.Intn(16 * times)
@@ -190,7 +184,7 @@ func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Cont
 		Seed:        seed,
 		NumIterate:  numIter,
 		MinifyMode:  opts.MinifyMode,
-		NoGarbage:   opts.NoJunkCode,
+		NoJunkCode:  opts.NoJunkCode,
 		SaveContext: opts.SaveContext,
 		EraseInst:   opts.EraseInst,
 	}
@@ -242,179 +236,6 @@ func (enc *Encoder) assemble(src string) ([]byte, error) {
 	default:
 		panic("unreachable code")
 	}
-}
-
-func (enc *Encoder) addLoader(shellcode []byte) ([]byte, error) {
-	if enc.opts.MinifyMode {
-		return shellcode, nil
-	}
-	var loader string
-	switch enc.arch {
-	case 32:
-		loader = enc.getLoaderX86()
-	case 64:
-		loader = enc.getLoaderX64()
-	}
-	asm, sc, err := enc.buildLoader(loader, shellcode)
-	if err != nil {
-		return nil, err
-	}
-	inst, err := enc.assemble(asm)
-	if err != nil {
-		return nil, err
-	}
-	return append(inst, sc...), nil
-}
-
-func (enc *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte, error) {
-	// append instructions for "IV" about encoder
-	shellcode = append(enc.buildJunkInst(false), shellcode...)
-	// append instructions to tail for prevent brute-force
-	tail := enc.randBytes(64 + len(shellcode)/40)
-	shellcode = append(shellcode, tail...)
-	// generate crypto key for shellcode decoder
-	cryptoKey := enc.randBytes(32)
-	var (
-		stubKey   any
-		eraserLen int
-	)
-	switch enc.arch {
-	case 32:
-		stubKey = enc.rand.Uint32()
-		eraserLen = len(eraserX86) + enc.rand.Intn(len(cryptoKey))
-		shellcode = encrypt32(shellcode, cryptoKey)
-	case 64:
-		stubKey = enc.rand.Uint64()
-		eraserLen = len(eraserX64) + enc.rand.Intn(len(cryptoKey))
-		shellcode = encrypt64(shellcode, cryptoKey)
-	}
-	enc.key = cryptoKey
-	enc.stubKey = stubKey
-	// parse loader template
-	tpl, err := template.New("loader").Funcs(template.FuncMap{
-		"db":  toDB,
-		"hex": toHex,
-		"iji": enc.insertJunkInst,
-	}).Parse(loader)
-	if err != nil {
-		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
-	}
-	ctx := loaderCtx{
-		StubKey:        stubKey,
-		DecoderStub:    enc.decoderStub(),
-		EraserStub:     enc.eraserStub(),
-		CryptoKeyStub:  enc.cryptoKeyStub(),
-		CryptoKeyLen:   len(cryptoKey),
-		ShellcodeLen:   len(shellcode),
-		EraserLen:      eraserLen,
-		EraseShellcode: enc.opts.EraseInst,
-	}
-	if enc.opts.SaveContext {
-		ctx.SaveContext = enc.saveContext()
-		ctx.RestoreContext = enc.restoreContext()
-	}
-	// build source from template and assemble it
-	buf := bytes.NewBuffer(make([]byte, 0, 4096))
-	err = tpl.Execute(buf, &ctx)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to build assembly source: %s", err)
-	}
-	return buf.String(), shellcode, nil
-}
-
-func (enc *Encoder) addMiniDecoder(input []byte) ([]byte, error) {
-	var miniDecoder string
-	switch enc.arch {
-	case 32:
-		miniDecoder = enc.getMiniDecoderX86()
-	case 64:
-		miniDecoder = enc.getMiniDecoderX64()
-	}
-	asm, body, err := enc.buildMiniDecoder(miniDecoder, input)
-	if err != nil {
-		return nil, err
-	}
-	inst, err := enc.assemble(asm)
-	if err != nil {
-		return nil, err
-	}
-	return append(inst, body...), nil
-}
-
-func (enc *Encoder) buildMiniDecoder(decoder string, input []byte) (string, []byte, error) {
-	// parse mini decoder template
-	tpl, err := template.New("mini_decoder").Funcs(template.FuncMap{
-		"db":  toDB,
-		"hex": toHex,
-		"iji": enc.insertJunkInst,
-		"ijs": enc.insertJunkInstShort,
-	}).Parse(decoder)
-	if err != nil {
-		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
-	}
-	seed := enc.rand.Uint32()
-	key := enc.rand.Uint32()
-	body := enc.xsrl(input, seed, key)
-	numLoopMaskA := enc.rand.Int31()
-	numLoopMaskB := enc.rand.Int31()
-	numLoopStub := int32(len(body)/4) ^ numLoopMaskA ^ numLoopMaskB // #nosec G115
-	offsetT := enc.rand.Int31n(math.MaxInt32/4 - 4096)
-	offsetA := enc.rand.Int31n(math.MaxInt32/4 - 8192)
-	offsetS := offsetT + offsetA
-	ctx := miniDecoderCtx{
-		Seed: seed,
-		Key:  key,
-
-		NumLoopStub:  numLoopStub,
-		NumLoopMaskA: numLoopMaskA,
-		NumLoopMaskB: numLoopMaskB,
-
-		OffsetT: offsetT,
-		OffsetA: offsetA,
-		OffsetS: offsetS,
-
-		Reg: enc.buildRandomRegisterMap(),
-	}
-	// add padding data at tail of mini decoder
-	if !enc.opts.MinifyMode {
-		ctx.Padding = true
-		ctx.PadData = enc.randBytes(8 + enc.rand.Intn(48))
-	}
-	// build source from template and assemble it
-	buf := bytes.NewBuffer(make([]byte, 0, 512))
-	err = tpl.Execute(buf, &ctx)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to build assembly source: %s", err)
-	}
-	return buf.String(), body, nil
-}
-
-func (enc *Encoder) getMiniDecoderX86() string {
-	if enc.opts.MiniDecoderX86 != "" {
-		return enc.opts.MiniDecoderX86
-	}
-	return defaultMiniDecoderX86
-}
-
-func (enc *Encoder) getMiniDecoderX64() string {
-	if enc.opts.MiniDecoderX64 != "" {
-		return enc.opts.MiniDecoderX64
-	}
-	return defaultMiniDecoderX64
-}
-
-func (enc *Encoder) getLoaderX86() string {
-	if enc.opts.LoaderX86 != "" {
-		return enc.opts.LoaderX86
-	}
-	return defaultLoaderX86
-}
-
-func (enc *Encoder) getLoaderX64() string {
-	if enc.opts.LoaderX64 != "" {
-		return enc.opts.LoaderX64
-	}
-	return defaultLoaderX64
 }
 
 func (enc *Encoder) randBytes(n int) []byte {
