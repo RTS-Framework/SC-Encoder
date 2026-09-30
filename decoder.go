@@ -28,8 +28,12 @@ type decoderCtx struct {
 	RegV map[string]string
 	RegN map[string]string
 
+	// xor with key
+	Imm map[string]uint32
+
 	// unshuffle seed
-	Seed any
+	Seed uint32
+	Key  uint32
 
 	// for prevent continuous 0x00
 	NumLoopStub  int32
@@ -76,26 +80,27 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 	if err != nil {
 		return "", nil, fmt.Errorf("invalid decoder template: %s", err)
 	}
-	var seed any
-	switch enc.arch {
-	case 32:
-		seed = enc.rand.Uint32()
-	case 64:
-		seed = enc.rand.Uint64()
-	}
-	body := enc.shuffle(input, seed)
+	// generate seed for shuffle body data
+	// generate key for xor immediate value map.
+	seed := enc.rand.Uint32()
+	key := enc.rand.Uint32()
+	// generate loop value
 	numLoopMaskA := enc.rand.Int31()
 	numLoopMaskB := enc.rand.Int31()
-	numLoopStub := int32(len(body)/4) ^ numLoopMaskA ^ numLoopMaskB // #nosec G115
-	offsetT := enc.rand.Int31n(math.MaxInt32/4 - 4096)
-	offsetA := enc.rand.Int31n(math.MaxInt32/4 - 8192)
+	numLoopStub := int32(len(input)) ^ numLoopMaskA ^ numLoopMaskB // #nosec G115
+	// generate offset for calculate rip
+	offsetT := enc.rand.Int31n(math.MaxInt32 >> 12)
+	offsetA := enc.rand.Int31n(math.MaxInt32 >> 10)
 	offsetS := offsetT + offsetA
 	ctx := decoderCtx{
 		Reg:  enc.buildRandomRegisterMap(),
 		RegV: enc.buildVolatileRegisterMap(),
 		RegN: enc.buildNonvolatileRegisterMap(),
 
+		Imm: enc.buildImmediateValueMap(key),
+
 		Seed: seed,
+		Key:  key,
 
 		NumLoopStub:  numLoopStub,
 		NumLoopMaskA: numLoopMaskA,
@@ -116,6 +121,7 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to build decoder source: %s", err)
 	}
+	body := enc.shuffle(input, seed)
 	return buf.String(), body, nil
 }
 
@@ -133,19 +139,7 @@ func (enc *Encoder) getDecoderX64() string {
 	return defaultDecoderX64
 }
 
-func (enc *Encoder) shuffle(input []byte, seed any) []byte {
-	data := bytes.Clone(input)
-	var output []byte
-	switch enc.arch {
-	case 32:
-		output = enc.shuffle32(data, seed.(uint32))
-	case 64:
-		output = enc.shuffle64(data, seed.(uint64))
-	}
-	return output
-}
-
-func (enc *Encoder) shuffle32(data []byte, seed uint32) []byte {
+func (enc *Encoder) shuffle(data []byte, seed uint32) []byte {
 	for i := len(data) - 1; i > 0; i-- {
 		j := seed % uint32(i+1)
 		t := data[i]
@@ -156,15 +150,19 @@ func (enc *Encoder) shuffle32(data []byte, seed uint32) []byte {
 	return data
 }
 
-func (enc *Encoder) shuffle64(data []byte, seed uint64) []byte {
-	for i := len(data) - 1; i > 0; i-- {
-		j := seed % uint64(i+1)
-		t := data[i]
-		data[i] = data[j]
-		data[j] = t
-		seed = xorShift64(seed)
+func (enc *Encoder) buildImmediateValueMap(key uint32) map[string]uint32 {
+	imm := make(map[string]uint32)
+	for _, item := range []struct {
+		key string
+		val uint32
+	}{
+		{"v_5", 5},
+		{"v_13", 13},
+		{"v_17", 17},
+	} {
+		imm[item.key] = item.val ^ key
 	}
-	return data
+	return imm
 }
 
 func (enc *Encoder) decoderStub() []byte {
