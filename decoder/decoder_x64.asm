@@ -19,68 +19,68 @@
 
 header:
   // save context
-  push {{.Reg.rax}}                            {{igi}}
-  push {{.Reg.rbx}}                            {{igi}}
-  push {{.Reg.rcx}}                            {{igi}}
-  push {{.Reg.rdx}}                            {{igi}}
-  push {{.Reg.rsi}}                            {{igi}}
-  push {{.Reg.rdi}}                            {{igi}}
-  pushfq                                       {{igi}}
+  push {{.Reg.rax}}                            {{iji}}
+  push {{.Reg.rbx}}                            {{iji}}
+  push {{.Reg.rcx}}                            {{iji}}
+  push {{.Reg.rdx}}                            {{iji}}
+  push {{.Reg.rsi}}                            {{iji}}
+  push {{.Reg.rdi}}                            {{iji}}
+  pushfq                                       {{iji}}
 
-  mov {{.Reg.eax}}, {{hex .Seed}}              {{igi}}
-  mov {{.Reg.ebx}}, {{hex .Key}}               {{igi}}
+  mov {{.Reg.eax}}, {{hex .Seed}}              {{iji}}
+  mov {{.Reg.ebx}}, {{hex .Key}}               {{iji}}
 
   // prevent continuous 0x00
-  mov {{.Reg.ecx}}, {{hex .NumLoopStub}}       {{igi}}
-  xor {{.Reg.ecx}}, {{hex .NumLoopMaskA}}      {{igi}}
-  xor {{.Reg.ecx}}, {{hex .NumLoopMaskB}}      {{igi}}
+  mov {{.Reg.ecx}}, {{hex .NumLoopStub}}       {{iji}}
+  xor {{.Reg.ecx}}, {{hex .NumLoopMaskA}}      {{iji}}
+  xor {{.Reg.ecx}}, {{hex .NumLoopMaskB}}      {{iji}}
 
   // calculate the body address
-  lea {{.Reg.rsi}}, [rip + body + {{hex .OffsetT}}]   {{igi}}
-  add {{.Reg.rsi}}, {{hex .OffsetA}}                  {{igi}}
-  sub {{.Reg.rsi}}, {{hex .OffsetS}}                  {{igi}}
+  lea {{.Reg.rsi}}, [rip + body + {{hex .OffsetT}}]   {{iji}}
+  add {{.Reg.rsi}}, {{hex .OffsetA}}                  {{iji}}
+  sub {{.Reg.rsi}}, {{hex .OffsetS}}                  {{iji}}
 
   // decode shellcode body
  loop_xor:
-  mov {{.Reg.edi}}, [{{.Reg.rsi}}]             {{igs}}
-  ror {{.Reg.edi}}, 17                         {{igs}}
-  xor {{.Reg.edi}}, {{.Reg.eax}}               {{igs}}
-  rol {{.Reg.edi}}, 7                          {{igs}}
-  xor {{.Reg.edi}}, {{.Reg.ebx}}               {{igs}}
-  mov [{{.Reg.rsi}}], {{.Reg.edi}}             {{igs}}
+  mov {{.Reg.edi}}, [{{.Reg.rsi}}]             {{ijs}}
+  ror {{.Reg.edi}}, 17                         {{ijs}}
+  xor {{.Reg.edi}}, {{.Reg.eax}}               {{ijs}}
+  rol {{.Reg.edi}}, 7                          {{ijs}}
+  xor {{.Reg.edi}}, {{.Reg.ebx}}               {{ijs}}
+  mov [{{.Reg.rsi}}], {{.Reg.edi}}             {{ijs}}
 
   // call xor shift 32
-  jmp xor_shift_32                             {{igs}}
+  jmp xor_shift_32                             {{ijs}}
  ret_1:
 
   // update address and counter
-  add {{.Reg.rsi}}, 4                          {{igs}}
-  dec {{.Reg.ecx}}                             {{igs}}
-  jnz loop_xor                                 {{igs}}
+  add {{.Reg.rsi}}, 4                          {{ijs}}
+  dec {{.Reg.ecx}}                             {{ijs}}
+  jnz loop_xor                                 {{ijs}}
 
   // jump to the loader or shellcode
-  jmp restore                                  {{igs}}
+  jmp restore                                  {{ijs}}
 
 xor_shift_32:
-  mov {{.Reg.edx}}, {{.Reg.eax}}               {{igs}}
-  shl {{.Reg.edx}}, 13                         {{igs}}
-  xor {{.Reg.eax}}, {{.Reg.edx}}               {{igs}}
-  mov {{.Reg.edx}}, {{.Reg.eax}}               {{igs}}
-  shr {{.Reg.edx}}, 17                         {{igs}}
-  xor {{.Reg.eax}}, {{.Reg.edx}}               {{igs}}
-  mov {{.Reg.edx}}, {{.Reg.eax}}               {{igs}}
-  shl {{.Reg.edx}}, 5                          {{igs}}
-  xor {{.Reg.eax}}, {{.Reg.edx}}               {{igs}}
-  jmp ret_1                                    {{igs}}
+  mov {{.Reg.edx}}, {{.Reg.eax}}               {{ijs}}
+  shl {{.Reg.edx}}, 13                         {{ijs}}
+  xor {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
+  mov {{.Reg.edx}}, {{.Reg.eax}}               {{ijs}}
+  shr {{.Reg.edx}}, 17                         {{ijs}}
+  xor {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
+  mov {{.Reg.edx}}, {{.Reg.eax}}               {{ijs}}
+  shl {{.Reg.edx}}, 5                          {{ijs}}
+  xor {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
+  jmp ret_1                                    {{ijs}}
 
 restore:
   // restore context
-  popfq                                        {{igi}}
-  pop {{.Reg.rdi}}                             {{igi}}
-  pop {{.Reg.rsi}}                             {{igi}}
-  pop {{.Reg.rdx}}                             {{igi}}
-  pop {{.Reg.rcx}}                             {{igi}}
-  pop {{.Reg.rbx}}                             {{igi}}
-  pop {{.Reg.rax}}                             {{igi}}
+  popfq                                        {{iji}}
+  pop {{.Reg.rdi}}                             {{iji}}
+  pop {{.Reg.rsi}}                             {{iji}}
+  pop {{.Reg.rdx}}                             {{iji}}
+  pop {{.Reg.rcx}}                             {{iji}}
+  pop {{.Reg.rbx}}                             {{iji}}
+  pop {{.Reg.rax}}                             {{iji}}
 
 body:
