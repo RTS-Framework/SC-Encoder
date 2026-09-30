@@ -155,7 +155,7 @@ func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Cont
 		return nil, err
 	}
 	// insert mini decoder at the prefix
-	output, err = enc.addMiniDecoder(output)
+	output, err = enc.addDecoder(output)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Cont
 		numIter = 0
 	}
 	for i := 0; i < numIter; i++ {
-		output, err = enc.addMiniDecoder(output)
+		output, err = enc.addDecoder(output)
 		if err != nil {
 			return nil, err
 		}

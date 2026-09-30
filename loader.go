@@ -60,20 +60,6 @@ func (enc *Encoder) addLoader(shellcode []byte) ([]byte, error) {
 	return append(inst, sc...), nil
 }
 
-func (enc *Encoder) getLoaderX86() string {
-	if enc.opts.LoaderX86 != "" {
-		return enc.opts.LoaderX86
-	}
-	return defaultLoaderX86
-}
-
-func (enc *Encoder) getLoaderX64() string {
-	if enc.opts.LoaderX64 != "" {
-		return enc.opts.LoaderX64
-	}
-	return defaultLoaderX64
-}
-
 func (enc *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte, error) {
 	// parse loader template
 	tpl, err := template.New("loader").Funcs(template.FuncMap{
@@ -128,4 +114,18 @@ func (enc *Encoder) buildLoader(loader string, shellcode []byte) (string, []byte
 		return "", nil, fmt.Errorf("failed to build loader source: %s", err)
 	}
 	return buf.String(), shellcode, nil
+}
+
+func (enc *Encoder) getLoaderX86() string {
+	if enc.opts.LoaderX86 != "" {
+		return enc.opts.LoaderX86
+	}
+	return defaultLoaderX86
+}
+
+func (enc *Encoder) getLoaderX64() string {
+	if enc.opts.LoaderX64 != "" {
+		return enc.opts.LoaderX64
+	}
+	return defaultLoaderX64
 }
