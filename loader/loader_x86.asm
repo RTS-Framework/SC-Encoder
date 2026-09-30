@@ -24,68 +24,68 @@ entry:
 
  // erase useless functions and entry
  flag_eraser_1:
-  lea ecx, [ebx + calc_entry_addr]         {{igi}}
-  mov edx, eraser_stub - calc_entry_addr   {{igi}}
-  call eraser_stub                         {{igi}}
+  lea ecx, [ebx + calc_entry_addr]         {{iji}}
+  mov edx, eraser_stub - calc_entry_addr   {{iji}}
+  call eraser_stub                         {{iji}}
 
-  mov ecx, ebx                       {{igi}}
-  mov edx, flag_eraser_1             {{igi}}
-  call eraser_stub                   {{igi}}
+  mov ecx, ebx                       {{iji}}
+  mov edx, flag_eraser_1             {{iji}}
+  call eraser_stub                   {{iji}}
 
   // restore arguments for call shellcode
-  pop edx                            {{igi}}
-  pop ecx                            {{igi}}
+  pop edx                            {{iji}}
+  pop ecx                            {{iji}}
 
   // ensure stack is 16 bytes aligned
-  push ebp                           {{igi}}
-  mov ebp, esp                       {{igi}}
-  mov eax, ebp                       {{igi}}
-  and eax, 0x0F                      {{igi}}
-  sub esp, eax                       {{igi}}
+  push ebp                           {{iji}}
+  mov ebp, esp                       {{iji}}
+  mov eax, ebp                       {{iji}}
+  and eax, 0x0F                      {{iji}}
+  sub esp, eax                       {{iji}}
 
   // execute the shellcode
-  push esi                           {{igi}}   // move the last argument to stack
-  call shellcode_stub                {{igi}}   // call the shellcode
+  push esi                           {{iji}}   // move the last argument to stack
+  call shellcode_stub                {{iji}}   // call the shellcode
 
   // restore stack and ebp
-  mov esp, ebp                       {{igi}}
-  pop ebp                            {{igi}}
+  mov esp, ebp                       {{iji}}
+  pop ebp                            {{iji}}
 
   // save the shellcode return value
-  push eax                           {{igi}}
+  push eax                           {{iji}}
 
   // erase the shellcode stub
 {{if .EraseShellcode}}
-  lea ecx, [ebx + shellcode_stub]    {{igi}}
-  mov edx, {{hex .ShellcodeLen}}     {{igi}}
-  call eraser_stub                   {{igi}}
+  lea ecx, [ebx + shellcode_stub]    {{iji}}
+  mov edx, {{hex .ShellcodeLen}}     {{iji}}
+  call eraser_stub                   {{iji}}
 {{end}}
 
   // erase the above instructions
  flag_eraser_2:
-  mov ecx, ebx                       {{igi}}
+  mov ecx, ebx                       {{iji}}
   // prevent appear three 0x00
-  xor edx, edx                       {{igi}}
-  add dx, flag_eraser_2 + 8          {{igi}}
-  call eraser_stub                   {{igi}}
+  xor edx, edx                       {{iji}}
+  add dx, flag_eraser_2 + 8          {{iji}}
+  call eraser_stub                   {{iji}}
 
   // erase the eraser stub
-  lea edi, [ebx + eraser_stub]       {{igi}}
-  lea esi, [ebx + crypto_key_stub]   {{igi}}
+  lea edi, [ebx + eraser_stub]       {{iji}}
+  lea esi, [ebx + crypto_key_stub]   {{iji}}
   // prevent appear three 0x00
-  xor ecx, ecx                       {{igi}}
-  add cx, {{hex .EraserLen}}         {{igi}}
-  cld                                {{igi}}
-  rep movsb                          {{igi}}
+  xor ecx, ecx                       {{iji}}
+  add cx, {{hex .EraserLen}}         {{iji}}
+  cld                                {{iji}}
+  rep movsb                          {{iji}}
 
   // restore the shellcode return value
-  pop eax                            {{igi}}
+  pop eax                            {{iji}}
 
   {{db .RestoreContext}}                       // restore registers
-  pop esi                            {{igi}}   // restore esi
-  pop ebp                            {{igi}}   // restore ebp
-  pop ebx                            {{igi}}   // restore ebx
-  ret                                {{igi}}   // return to the caller
+  pop esi                            {{iji}}   // restore esi
+  pop ebp                            {{iji}}   // restore ebp
+  pop ebx                            {{iji}}   // restore ebx
+  ret                                {{iji}}   // return to the caller
 
 calc_entry_addr:
   pop eax                                      // get return address
@@ -144,12 +144,12 @@ erase_crypto_key_stub:
   ret
 
 decoder_stub:
-  {{db .DecoderStub}}                {{igi}}
+  {{db .DecoderStub}}                {{iji}}
 
 eraser_stub:
-  {{db .EraserStub}}                 {{igi}}
+  {{db .EraserStub}}                 {{iji}}
 
 crypto_key_stub:
-  {{db .CryptoKeyStub}}              {{igi}}
+  {{db .CryptoKeyStub}}              {{iji}}
 
 shellcode_stub:

