@@ -154,11 +154,3 @@ var (
 		0xC3, //                                         ret
 	}
 )
-
-var (
-	//go:embed eraser/eraser_x86.bin
-	eraserX86 []byte
-
-	//go:embed eraser/eraser_x64.bin
-	eraserX64 []byte
-)

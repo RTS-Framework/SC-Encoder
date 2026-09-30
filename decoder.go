@@ -74,7 +74,7 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 		"ijs": enc.insertJunkInstShort,
 	}).Parse(decoder)
 	if err != nil {
-		return "", nil, fmt.Errorf("invalid assembly source template: %s", err)
+		return "", nil, fmt.Errorf("invalid decoder template: %s", err)
 	}
 	var seed any
 	switch enc.arch {
@@ -91,6 +91,10 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 	offsetA := enc.rand.Int31n(math.MaxInt32/4 - 8192)
 	offsetS := offsetT + offsetA
 	ctx := decoderCtx{
+		Reg:  enc.buildRandomRegisterMap(),
+		RegV: enc.buildVolatileRegisterMap(),
+		RegN: enc.buildNonvolatileRegisterMap(),
+
 		Seed: seed,
 
 		NumLoopStub:  numLoopStub,
@@ -100,8 +104,6 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 		OffsetT: offsetT,
 		OffsetA: offsetA,
 		OffsetS: offsetS,
-
-		Reg: enc.buildRandomRegisterMap(),
 	}
 	// add padding data at tail of decoder
 	if !enc.opts.MinifyMode {
@@ -112,7 +114,7 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 	buf := bytes.NewBuffer(make([]byte, 0, 512))
 	err = tpl.Execute(buf, &ctx)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to build assembly source: %s", err)
+		return "", nil, fmt.Errorf("failed to build decoder source: %s", err)
 	}
 	return buf.String(), body, nil
 }
