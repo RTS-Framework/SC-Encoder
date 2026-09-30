@@ -62,32 +62,47 @@ header:
   jmp body                                     {{iji}}
 
 xor_shift_32:
-  // rdx store the xor shift median
-  // rbp store the immediate value
-  push {{.Reg.rdx}}                            {{ijs}}
-  push {{.Reg.rbp}}                            {{ijs}}
+  mov {{.Reg.edx}}, {{.Imm.v_13}}              {{iji}}
+  call xor_shl                                 {{iji}}
+  mov {{.Reg.edx}}, {{.Imm.v_17}}              {{iji}}
+  call xor_shr                                 {{iji}}
+  mov {{.Reg.edx}}, {{.Imm.v_5}}               {{iji}}
+  call xor_shl                                 {{iji}}
+  ret                                          {{iji}}
 
-  mov {{.Reg.edx}}, {{.Reg.eax}}               {{ijs}}
-  mov {{.Reg.ebp}}, {{.Imm.v_13}}              {{iji}}
-  xor {{.Reg.ebp}}, {{.Reg.ebx}}               {{ijs}}
-  shl {{.Reg.edx}}, {{.Reg.ebp}}               {{iji}}
-  xor {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
+reverse_xor_shift_32:
+  ret                                          {{ijs}}
 
-  mov {{.Reg.edx}}, {{.Reg.eax}}               {{iji}}
-  mov {{.Reg.ebp}}, {{.Imm.v_17}}              {{ijs}}
-  xor {{.Reg.ebp}}, {{.Reg.ebx}}               {{iji}}
-  shr {{.Reg.edx}}, {{.Reg.ebp}}               {{ijs}}
-  xor {{.Reg.eax}}, {{.Reg.edx}}               {{iji}}
+// rcx = input, rdx = xor, shift value, rcx = return
+xor_shl:
+  // rax store the xor shift median value
+  push {{.Reg.rax}}                            {{iji}}
+  push {{.Reg.rcx}}                            {{iji}}
 
-  mov {{.Reg.edx}}, {{.Reg.eax}}               {{ijs}}
-  mov {{.Reg.ebp}}, {{.Imm.v_5}}               {{ijs}}
-  xor {{.Reg.ebp}}, {{.Reg.ebx}}               {{iji}}
-  shl {{.Reg.edx}}, {{.Reg.ebp}}               {{iji}}
-  xor {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
+  mov {{.Reg.eax}}, {{.Reg.ecx}}               {{ijs}}
+  xor {{.Reg.edx}}, {{.Reg.ebx}}               {{iji}}
+  shl {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
+  xor {{.Reg.ecx}}, {{.Reg.eax}}               {{iji}}
 
   // restore context
-  pop {{.Reg.rbp}}                             {{iji}}
-  pop {{.Reg.rdx}}                             {{iji}}
+  pop {{.Reg.rcx}}                             {{iji}}
+  pop {{.Reg.rax}}                             {{iji}}
+  ret                                          {{iji}}
+
+// rcx = input, rdx = xor, shift value, rcx = return
+xor_shr:
+  // rax store the xor shift median value
+  push {{.Reg.rax}}                            {{iji}}
+  push {{.Reg.rcx}}                            {{iji}}
+
+  mov {{.Reg.eax}}, {{.Reg.ecx}}               {{iji}}
+  xor {{.Reg.edx}}, {{.Reg.ebx}}               {{ijs}}
+  shr {{.Reg.eax}}, {{.Reg.edx}}               {{iji}}
+  xor {{.Reg.ecx}}, {{.Reg.eax}}               {{ijs}}
+
+  // restore context
+  pop {{.Reg.rcx}}                             {{iji}}
+  pop {{.Reg.rax}}                             {{iji}}
   ret                                          {{iji}}
 
 body:
