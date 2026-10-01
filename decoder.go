@@ -29,11 +29,11 @@ type decoderCtx struct {
 	RegN map[string]string
 
 	// xor with key
-	Imm map[string]uint32
+	Imm map[string]any
 
-	// unshuffle seed
-	Seed uint32
-	Key  uint32
+	// unshuffle seed and xor key
+	Seed any
+	Key  any
 
 	// for prevent continuous 0x00
 	NumLoopStub  int32
@@ -82,8 +82,20 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 	}
 	// generate seed for shuffle body data
 	// generate key for xor immediate value map.
-	seed := enc.rand.Uint32()
-	key := enc.rand.Uint32()
+	var (
+		seed any
+		key  any
+	)
+	switch enc.arch {
+	case 32:
+		seed = enc.rand.Uint32()
+		key = enc.rand.Uint32()
+	case 64:
+		seed = enc.rand.Uint64()
+		key = enc.rand.Uint64()
+	}
+	// shuffle input and store transformed seed
+	body, seed := enc.shuffle(input, seed)
 	// generate loop value
 	numLoopMaskA := enc.rand.Int31()
 	numLoopMaskB := enc.rand.Int31()
@@ -121,7 +133,6 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to build decoder source: %s", err)
 	}
-	body := enc.shuffle(input, seed)
 	return buf.String(), body, nil
 }
 
@@ -139,28 +150,59 @@ func (enc *Encoder) getDecoderX64() string {
 	return defaultDecoderX64
 }
 
-func (enc *Encoder) shuffle(data []byte, seed uint32) []byte {
-	for i := len(data) - 1; i > 0; i-- {
-		j := seed % uint32(i+1)
-		t := data[i]
-		data[i] = data[j]
-		data[j] = t
-		seed = xorShift32(seed)
+func (enc *Encoder) shuffle(data []byte, seed any) ([]byte, any) {
+	data = bytes.Clone(data)
+	var advanced any
+	switch enc.arch {
+	case 32:
+		seed := seed.(uint32)
+		for i := len(data) - 1; i > 0; i-- {
+			j := seed % uint32(i+1)
+			t := data[i]
+			data[i] = data[j]
+			data[j] = t
+			seed = lcg32(seed)
+		}
+		advanced = seed
+	case 64:
+		seed := seed.(uint64)
+		for i := len(data) - 1; i > 0; i-- {
+			j := seed % uint64(i+1)
+			t := data[i]
+			data[i] = data[j]
+			data[j] = t
+			seed = lcg64(seed)
+		}
+		advanced = seed
 	}
-	return data
+	return data, advanced
 }
 
-func (enc *Encoder) buildImmediateValueMap(key uint32) map[string]uint32 {
-	imm := make(map[string]uint32)
-	for _, item := range []struct {
-		key string
-		val uint32
-	}{
-		{"v_5", 5},
-		{"v_13", 13},
-		{"v_17", 17},
-	} {
-		imm[item.key] = item.val ^ key
+func (enc *Encoder) buildImmediateValueMap(key any) map[string]any {
+	imm := make(map[string]any)
+	switch enc.arch {
+	case 32:
+		for _, item := range []struct {
+			key string
+			val uint32
+		}{
+			{"v_5", 5},
+			{"v_13", 13},
+			{"v_17", 17},
+		} {
+			imm[item.key] = item.val ^ key.(uint32)
+		}
+	case 64:
+		for _, item := range []struct {
+			key string
+			val uint64
+		}{
+			{"v_5", 5},
+			{"v_13", 13},
+			{"v_17", 17},
+		} {
+			imm[item.key] = item.val ^ key.(uint64)
+		}
 	}
 	return imm
 }
@@ -308,6 +350,22 @@ func encrypt64(data, key []byte) []byte {
 		last = xorShift64(last)
 	}
 	return output
+}
+
+func lcg32(seed uint32) uint32 {
+	return seed*0x19660D + 0x3C6EF35F
+}
+
+func lcg64(seed uint64) uint64 {
+	return seed*0x5851F42D4C957F2D + 0x14057B7EF767814F
+}
+
+func reverseLCG32(seed uint32) uint32 {
+	return seed*0xFEE058C5 + 0x25D60FE5
+}
+
+func reverseLCG64(seed uint64) uint64 {
+	return seed*0xC097EF87329E28A5 + 0x9995B5B621535015
 }
 
 func xorShift32(seed uint32) uint32 {
