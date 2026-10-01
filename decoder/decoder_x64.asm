@@ -44,7 +44,7 @@ header:
   mov [{{.Reg.rsi}}], {{.Reg.edi}}             {{ijs}}
 
 
-  call xor_shift_32                             {{ijs}}
+  call xor_shift_32                            {{ijs}}
 
 
   // update counter
@@ -71,9 +71,21 @@ xor_shift_32:
   ret                                          {{iji}}
 
 reverse_xor_shift_32:
-  ret                                          {{ijs}}
+  mov {{.Reg.edx}}, {{.Imm.v_5}}               {{iji}}
+  call xor_shl                                 {{iji}}
+  mov {{.Reg.edx}}, {{.Imm.v_10}}              {{iji}}
+  call xor_shl                                 {{iji}}
+  mov {{.Reg.edx}}, {{.Imm.v_20}}              {{iji}}
+  call xor_shl                                 {{iji}}
+  mov {{.Reg.edx}}, {{.Imm.v_17}}              {{iji}}
+  call xor_shr                                 {{iji}}
+  mov {{.Reg.edx}}, {{.Imm.v_13}}              {{iji}}
+  call xor_shl                                 {{iji}}
+  mov {{.Reg.edx}}, {{.Imm.v_26}}              {{iji}}
+  call xor_shl                                 {{iji}}
+  ret                                          {{iji}}
 
-// rcx = input, rdx = xor, shift value, rcx = return
+// rcx = input, rdx = xor, shift value, rcx = output
 xor_shl:
   // rax store the xor shift median value
   push {{.Reg.rax}}                            {{iji}}
@@ -89,7 +101,7 @@ xor_shl:
   pop {{.Reg.rax}}                             {{iji}}
   ret                                          {{iji}}
 
-// rcx = input, rdx = xor, shift value, rcx = return
+// rcx = input, rdx = xor, shift value, rcx = output
 xor_shr:
   // rax store the xor shift median value
   push {{.Reg.rax}}                            {{iji}}
