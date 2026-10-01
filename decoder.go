@@ -104,6 +104,7 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 	offsetT := enc.rand.Int31n(math.MaxInt32 >> 12)
 	offsetA := enc.rand.Int31n(math.MaxInt32 >> 10)
 	offsetS := offsetT + offsetA
+	// build context
 	ctx := decoderCtx{
 		Reg:  enc.buildRandomRegisterMap(),
 		RegV: enc.buildVolatileRegisterMap(),
@@ -157,7 +158,7 @@ func (enc *Encoder) shuffle(data []byte, seed any) ([]byte, any) {
 	case 32:
 		seed := seed.(uint32)
 		for i := len(data) - 1; i > 0; i-- {
-			j := seed % uint32(i+1)
+			j := (seed >> 3) % uint32(i+1)
 			t := data[i]
 			data[i] = data[j]
 			data[j] = t
@@ -167,7 +168,7 @@ func (enc *Encoder) shuffle(data []byte, seed any) ([]byte, any) {
 	case 64:
 		seed := seed.(uint64)
 		for i := len(data) - 1; i > 0; i-- {
-			j := seed % uint64(i+1)
+			j := (seed >> 3) % uint64(i+1)
 			t := data[i]
 			data[i] = data[j]
 			data[j] = t
@@ -186,9 +187,8 @@ func (enc *Encoder) buildImmediateValueMap(key any) map[string]any {
 			key string
 			val uint32
 		}{
-			{"v_5", 5},
-			{"v_13", 13},
-			{"v_17", 17},
+			{"Mul", 0xFEE058C5},
+			{"Inc", 0x25D60FE5},
 		} {
 			imm[item.key] = item.val ^ key.(uint32)
 		}
@@ -197,15 +197,32 @@ func (enc *Encoder) buildImmediateValueMap(key any) map[string]any {
 			key string
 			val uint64
 		}{
-			{"v_5", 5},
-			{"v_13", 13},
-			{"v_17", 17},
+			{"Mul", 0xC097EF87329E28A5},
+			{"Inc", 0x9995B5B621535015},
 		} {
 			imm[item.key] = item.val ^ key.(uint64)
 		}
 	}
 	return imm
 }
+
+func lcg32(seed uint32) uint32 {
+	return seed*0x19660D + 0x3C6EF35F
+}
+
+func lcg64(seed uint64) uint64 {
+	return seed*0x5851F42D4C957F2D + 0x14057B7EF767814F
+}
+
+func reverseLCG32(seed uint32) uint32 {
+	return seed*0xFEE058C5 + 0x25D60FE5
+}
+
+func reverseLCG64(seed uint64) uint64 {
+	return seed*0xC097EF87329E28A5 + 0x9995B5B621535015
+}
+
+// ------------------------------- old code --------------------------------------
 
 func (enc *Encoder) decoderStub() []byte {
 	var decoder []byte
@@ -350,22 +367,6 @@ func encrypt64(data, key []byte) []byte {
 		last = xorShift64(last)
 	}
 	return output
-}
-
-func lcg32(seed uint32) uint32 {
-	return seed*0x19660D + 0x3C6EF35F
-}
-
-func lcg64(seed uint64) uint64 {
-	return seed*0x5851F42D4C957F2D + 0x14057B7EF767814F
-}
-
-func reverseLCG32(seed uint32) uint32 {
-	return seed*0xFEE058C5 + 0x25D60FE5
-}
-
-func reverseLCG64(seed uint64) uint64 {
-	return seed*0xC097EF87329E28A5 + 0x9995B5B621535015
 }
 
 func xorShift32(seed uint32) uint32 {
