@@ -16,6 +16,7 @@ entry:
   push {{.Reg.rax}}                            {{iji}}
   push {{.Reg.rbx}}                            {{iji}}
   push {{.Reg.rcx}}                            {{iji}}
+  push {{.Reg.rdx}}                            {{iji}}
   push {{.Reg.rbp}}                            {{iji}}
   push {{.Reg.rsi}}                            {{iji}}
   push {{.Reg.rdi}}                            {{iji}}
@@ -30,7 +31,8 @@ entry:
   xor {{.Reg.rcx}}, {{.Reg.rbx}}               {{iji}}
 
   // decrypt multiplier and destroy key
-  xor {{.Reg.rbx}}, {{hex .Imm.Mul}}           {{iji}}
+  mov {{.Reg.rdx}}, {{hex .Imm.Mul}}           {{iji}}
+  xor {{.Reg.rbx}}, {{.Reg.rdx}}               {{iji}}
 
   // prevent continuous 0x00
   mov {{.Reg.edx}}, {{hex .NumLoopStub}}       {{iji}}
@@ -45,31 +47,33 @@ entry:
   // unshuffle shellcode body
  loop_unshuffle:
   // seed = seed * multiplier + increment
-  mul {{.Reg.rax}}, {{.Reg.rbx}}
-  add {{.Reg.rax}}, {{.Reg.rcx}}
+  imul {{.Reg.rax}}, {{.Reg.rbx}}              {{iji}}
+  add {{.Reg.rax}}, {{.Reg.rcx}}               {{iji}}
 
   // calculate swapped
   shr {{.Reg.rax}}, 3
 
-  sub rsp, 8
+  // sub rsp, 8
 
   push rax
   push rcx
   push rdx
 
-  xor rdx, rdx
+  // seed % (i + 1)
   mov rax, {{.Reg.rax}}
-  mov rcx, {{.Reg.rcx}}
+  mov rcx, {{.Reg.rdx}}
+  inc rcx
+  xor rdx, rdx
   div rcx
 
-  mov [rsp+24], rdx
+  // mov [rsp+24], rdx
 
   pop rdx
   pop rcx
   pop rax
 
-  mov {{.Reg.rdx}}, [rsp]
-  add rsp, 8
+  // mov {{.Reg.rdx}}, [rsp]
+  // add rsp, 8
 
   // swap data[i] and data[j]
   // mov {{.Reg.al}}, [{{.Reg.rbp}} + {{.Reg.rsi}} ]
@@ -86,9 +90,11 @@ entry:
   pop {{.Reg.rdi}}                             {{iji}}
   pop {{.Reg.rsi}}                             {{iji}}
   pop {{.Reg.rbp}}                             {{iji}}
+  pop {{.Reg.rdx}}                             {{iji}}
   pop {{.Reg.rcx}}                             {{iji}}
   pop {{.Reg.rbx}}                             {{iji}}
   pop {{.Reg.rax}}                             {{iji}}
 
 body:
+  ret
   // loader or raw shellcode
