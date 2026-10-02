@@ -34,10 +34,14 @@ entry:
   mov {{.Reg.rdx}}, {{hex .Imm.Mul}}           {{iji}}
   xor {{.Reg.rbx}}, {{.Reg.rdx}}               {{iji}}
 
-  // prevent continuous 0x00
+  // decrypt the loop time and prevent continuous 0x00
   mov {{.Reg.edx}}, {{hex .NumLoopStub}}       {{iji}}
   xor {{.Reg.edx}}, {{hex .NumLoopMaskA}}      {{iji}}
   xor {{.Reg.edx}}, {{hex .NumLoopMaskB}}      {{iji}}
+
+  // check the loop time is zero
+  test {{.Reg.edx}}, {{.Reg.edx}}              {{iji}}
+  jz exit_loop                                 {{iji}}
 
   // calculate the body address
   lea {{.Reg.rbp}}, [rip + body + {{hex .OffsetT}}]   {{iji}}
@@ -50,30 +54,44 @@ entry:
   imul {{.Reg.rax}}, {{.Reg.rbx}}              {{iji}}
   add {{.Reg.rax}}, {{.Reg.rcx}}               {{iji}}
 
-  // calculate swapped
-  shr {{.Reg.rax}}, 3
+  // save seed and calculate seed >> 3
+  push {{.Reg.rax}}                            {{iji}}
+  shr {{.Reg.rax}}, 3                          {{iji}}
 
-  // sub rsp, 8
+  // reserve space for store the div result
+  sub rsp, 8                                   {{iji}}
 
-  push rax
-  push rcx
-  push rdx
+  // save context
+  push rax                                     {{iji}}
+  push rcx                                     {{iji}}
+  push rdx                                     {{iji}}
 
   // seed % (i + 1)
-  mov rax, {{.Reg.rax}}
-  mov rcx, {{.Reg.rdx}}
-  inc rcx
-  xor rdx, rdx
-  div rcx
+  mov rax, {{.Reg.rax}}                        {{iji}}
+  mov rcx, {{.Reg.rdx}}                        {{iji}}
+  inc rcx                                      {{iji}}
+  xor rdx, rdx                                 {{iji}}
+  div rcx                                      {{iji}}
 
-  // mov [rsp+24], rdx
+  // store the div result
+  mov [rsp+24], rdx                            {{iji}}
 
-  pop rdx
-  pop rcx
-  pop rax
+  // restore context
+  pop rdx                                      {{iji}}
+  pop rcx                                      {{iji}}
+  pop rax                                      {{iji}}
 
-  // mov {{.Reg.rdx}}, [rsp]
-  // add rsp, 8
+  // dump the div result for swap data
+  mov {{.Reg.rdi}}, [rsp]                      {{iji}}
+
+  // restore stack
+  add rsp, 8                                   {{iji}}
+
+  // restore seed
+  pop {{.Reg.rax}}                             {{iji}}
+
+
+  mov r15, {{.Reg.rax}}
 
   // swap data[i] and data[j]
   // mov {{.Reg.al}}, [{{.Reg.rbp}} + {{.Reg.rsi}} ]
@@ -81,9 +99,10 @@ entry:
   // mov [{{.Reg.rbp}} + {{.Reg.rsi}}], {{.Reg.al}}
 
 
-  // update counter
+  // update loop counter
   dec {{.Reg.edx}}                             {{iji}}
   jnz loop_unshuffle                           {{iji}}
+ exit_loop:
 
   // restore context
   popfq                                        {{iji}}
@@ -94,6 +113,9 @@ entry:
   pop {{.Reg.rcx}}                             {{iji}}
   pop {{.Reg.rbx}}                             {{iji}}
   pop {{.Reg.rax}}                             {{iji}}
+
+
+  mov rax, r15
 
 body:
   ret
