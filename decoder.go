@@ -165,7 +165,7 @@ func (enc *Encoder) shuffle(data []byte, seed any) ([]byte, any) {
 	switch enc.arch {
 	case 32:
 		seed := seed.(uint32)
-		for i := len(data) - 1; i > 0; i-- {
+		for i := 1; i < len(data); i++ {
 			j := (seed >> 3) % uint32(i+1)
 			t := data[i]
 			data[i] = data[j]
@@ -175,7 +175,7 @@ func (enc *Encoder) shuffle(data []byte, seed any) ([]byte, any) {
 		advanced = seed
 	case 64:
 		seed := seed.(uint64)
-		for i := len(data) - 1; i > 0; i-- {
+		for i := 1; i < len(data); i++ {
 			j := (seed >> 3) % uint64(i+1)
 			t := data[i]
 			data[i] = data[j]
@@ -192,7 +192,7 @@ func (enc *Encoder) unshuffle(data []byte, seed any) []byte {
 	switch enc.arch {
 	case 32:
 		seed := seed.(uint32)
-		for i := 1; i < len(data); i++ {
+		for i := len(data) - 1; i > 0; i-- {
 			seed = reverseLCG32(seed)
 			j := (seed >> 3) % uint32(i+1)
 			t := data[i]
@@ -201,7 +201,7 @@ func (enc *Encoder) unshuffle(data []byte, seed any) []byte {
 		}
 	case 64:
 		seed := seed.(uint64)
-		for i := 1; i < len(data); i++ {
+		for i := len(data) - 1; i > 0; i-- {
 			seed = reverseLCG64(seed)
 			j := (seed >> 3) % uint64(i+1)
 			t := data[i]
