@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"text/template"
@@ -51,6 +52,9 @@ type decoderCtx struct {
 }
 
 func (enc *Encoder) addDecoder(input []byte) ([]byte, error) {
+	if len(input) == 0 {
+		return nil, errors.New("add decoder with empty input")
+	}
 	var decoder string
 	switch enc.arch {
 	case 32:
@@ -96,10 +100,14 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 	}
 	// shuffle input and store transformed seed
 	body, seed := enc.shuffle(input, seed)
+	unshuffled := enc.unshuffle(body, seed)
+	if !bytes.Equal(unshuffled, input) {
+		panic("incorrect unshuffled data")
+	}
 	// generate loop value
 	numLoopMaskA := enc.rand.Int31()
 	numLoopMaskB := enc.rand.Int31()
-	numLoopStub := int32(len(input)) ^ numLoopMaskA ^ numLoopMaskB // #nosec G115
+	numLoopStub := int32(len(input)-1) ^ numLoopMaskA ^ numLoopMaskB // #nosec G115
 	// generate offset for calculate rip
 	offsetT := enc.rand.Int31n(math.MaxInt32 >> 12)
 	offsetA := enc.rand.Int31n(math.MaxInt32 >> 10)
@@ -177,6 +185,31 @@ func (enc *Encoder) shuffle(data []byte, seed any) ([]byte, any) {
 		advanced = seed
 	}
 	return data, advanced
+}
+
+func (enc *Encoder) unshuffle(data []byte, seed any) []byte {
+	data = bytes.Clone(data)
+	switch enc.arch {
+	case 32:
+		seed := seed.(uint32)
+		for i := 1; i < len(data); i++ {
+			seed = reverseLCG32(seed)
+			j := (seed >> 3) % uint32(i+1)
+			t := data[i]
+			data[i] = data[j]
+			data[j] = t
+		}
+	case 64:
+		seed := seed.(uint64)
+		for i := 1; i < len(data); i++ {
+			seed = reverseLCG64(seed)
+			j := (seed >> 3) % uint64(i+1)
+			t := data[i]
+			data[i] = data[j]
+			data[j] = t
+		}
+	}
+	return data
 }
 
 func (enc *Encoder) buildImmediateValueMap(key any) map[string]any {
