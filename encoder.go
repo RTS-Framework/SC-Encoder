@@ -84,6 +84,7 @@ type Options struct {
 // Context contains the output and context data in Encode.
 type Context struct {
 	Output  []byte `json:"output"`
+	Size    uint32 `json:"size"`
 	Seed    int64  `json:"seed"`
 	NumIter int    `json:"num_iter"`
 	Decoder string `json:"decoder"`
@@ -186,6 +187,7 @@ func (enc *Encoder) Encode(shellcode []byte, arch int, opts *Options) (ctx *Cont
 	// build encode context for test and debug
 	ctx = &Context{
 		Output:  output,
+		Size:    uint32(len(output)),
 		Seed:    seed,
 		NumIter: numIter,
 	}
