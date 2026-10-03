@@ -140,7 +140,7 @@ func (enc *Encoder) buildBYTERegisterMap(regMap map[string]string) map[string]st
 	return b
 }
 
-// map r8 -> r8d, rax -> eax
+// map rax -> eax, r8 -> r8d
 func mapRegDWORD(reg string) string {
 	if reg[0] == 'e' {
 		return reg
@@ -152,7 +152,7 @@ func mapRegDWORD(reg string) string {
 	return strings.ReplaceAll(reg, "r", "e")
 }
 
-// map r8 -> r8w, rax -> ax, eax -> ax
+// map rax -> ax, r8 -> r8w
 func mapRegWORD(reg string) string {
 	_, err := strconv.Atoi(reg[1:])
 	if err == nil {
@@ -178,7 +178,7 @@ func mapRegWORD(reg string) string {
 	}
 }
 
-// map r8 -> r8b, rax -> al
+// map rax -> al, r8 -> r8b
 func mapRegBYTE(reg string) string {
 	if reg[0] == 'e' {
 		return reg

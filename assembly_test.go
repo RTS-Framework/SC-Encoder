@@ -22,6 +22,99 @@ var (
 	}
 )
 
+func TestBuildRandomRegisterMap(t *testing.T) {
+	encoder := NewEncoder()
+
+	t.Run("x86", func(t *testing.T) {
+		encoder.arch = 32
+		err := encoder.initAssembler()
+		require.NoError(t, err)
+
+		regMap := encoder.buildRandomRegisterMap()
+		for src, dst := range regMap {
+			t.Logf("%s -> %s\n", src, dst)
+			require.NotEqual(t, src, dst)
+		}
+	})
+
+	t.Run("x64", func(t *testing.T) {
+		encoder.arch = 64
+		err := encoder.initAssembler()
+		require.NoError(t, err)
+
+		regMap := encoder.buildRandomRegisterMap()
+		for src, dst := range regMap {
+			t.Logf("%s -> %s\n", src, dst)
+			require.NotEqual(t, src, dst)
+		}
+	})
+
+	err := encoder.Close()
+	require.NoError(t, err)
+}
+
+func TestBuildVolatileRegisterMap(t *testing.T) {
+	encoder := NewEncoder()
+
+	t.Run("x86", func(t *testing.T) {
+		encoder.arch = 32
+		err := encoder.initAssembler()
+		require.NoError(t, err)
+
+		regMap := encoder.buildVolatileRegisterMap()
+		for src, dst := range regMap {
+			t.Logf("%s -> %s\n", src, dst)
+			require.NotEqual(t, src, dst)
+		}
+	})
+
+	t.Run("x64", func(t *testing.T) {
+		encoder.arch = 64
+		err := encoder.initAssembler()
+		require.NoError(t, err)
+
+		regMap := encoder.buildVolatileRegisterMap()
+		for src, dst := range regMap {
+			t.Logf("%s -> %s\n", src, dst)
+			require.NotEqual(t, src, dst)
+		}
+	})
+
+	err := encoder.Close()
+	require.NoError(t, err)
+}
+
+func TestBuildNonvolatileRegisterMap(t *testing.T) {
+	encoder := NewEncoder()
+
+	t.Run("x86", func(t *testing.T) {
+		encoder.arch = 32
+		err := encoder.initAssembler()
+		require.NoError(t, err)
+
+		regMap := encoder.buildNonvolatileRegisterMap()
+		for src, dst := range regMap {
+			t.Logf("%s -> %s\n", src, dst)
+			require.NotEqual(t, src, dst)
+		}
+	})
+
+	t.Run("x64", func(t *testing.T) {
+		encoder.arch = 64
+		err := encoder.initAssembler()
+		require.NoError(t, err)
+
+		regMap := encoder.buildNonvolatileRegisterMap()
+		for src, dst := range regMap {
+			t.Logf("%s -> %s\n", src, dst)
+			require.NotEqual(t, src, dst)
+		}
+	})
+
+	err := encoder.Close()
+	require.NoError(t, err)
+}
+
 func TestMapRegDWORD(t *testing.T) {
 	t.Run("x86", func(t *testing.T) {
 		for _, item := range []string{
