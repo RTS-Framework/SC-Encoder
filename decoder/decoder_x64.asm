@@ -8,8 +8,8 @@
 // rcx store the increment
 // rdx store the loop times
 // rbp store the body address
-// rsi store the swapped data
-// rdi store the swapped offset
+// rsi store the swapped address about i
+// rdi store the swapped address about j
 
 entry:
   // save context
@@ -41,7 +41,7 @@ entry:
 
   // check the loop time is zero
   test {{.Reg.edx}}, {{.Reg.edx}}              {{iji}}
-  jz exit_loop                                 {{iji}}
+  jz skip_unshuffle                            {{iji}}
 
   // calculate the body address
   lea {{.Reg.rbp}}, [rip + body + {{hex .OffsetT}}]   {{iji}}
@@ -81,8 +81,16 @@ entry:
   pop rcx                                      {{iji}}
   pop rax                                      {{iji}}
 
-  // dump the div result for swap data
+  // calculate the swapped data address
+  mov {{.Reg.esi}}, {{.Reg.edx}}               {{iji}}
+  add {{.Reg.rsi}}, {{.Reg.rbp}}               {{iji}}
   mov {{.Reg.rdi}}, [rsp]                      {{iji}}
+  add {{.Reg.rdi}}, {{.Reg.rbp}}               {{iji}}
+
+  // swap data[i] and data[j]
+  mov {{.Reg.al}}, [{{.Reg.rsi}}]              {{iji}}
+  xchg {{.Reg.al}}, [{{.Reg.rdi}}]             {{iji}}
+  mov [{{.Reg.rsi}}], {{.Reg.al}}              {{iji}}
 
   // restore stack
   add rsp, 8                                   {{iji}}
@@ -90,19 +98,10 @@ entry:
   // restore seed
   pop {{.Reg.rax}}                             {{iji}}
 
-
-  mov r15, {{.Reg.rax}}
-
-  // swap data[i] and data[j]
-  // mov {{.Reg.al}}, [{{.Reg.rbp}} + {{.Reg.rsi}} ]
-  // xchg {{.Reg.al}},  [{{.Reg.rbp}} + {{.Reg.rdx}}]
-  // mov [{{.Reg.rbp}} + {{.Reg.rsi}}], {{.Reg.al}}
-
-
   // update loop counter
   dec {{.Reg.edx}}                             {{iji}}
   jnz loop_unshuffle                           {{iji}}
- exit_loop:
+ skip_unshuffle:
 
   // restore context
   popfq                                        {{iji}}
@@ -114,9 +113,5 @@ entry:
   pop {{.Reg.rbx}}                             {{iji}}
   pop {{.Reg.rax}}                             {{iji}}
 
-
-  mov rax, r15
-
 body:
-  ret
   // loader or raw shellcode
