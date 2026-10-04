@@ -1,20 +1,16 @@
 .code32
 
-// the ret and next labels are used to prevent
-// "0x00, 0x00, 0x00" and "0xFF, 0xFF, 0xFF"
-// about call or jmp instructions
-
 // iji means insert junk instruction
 // ijs means insert junk instruction with short version
 
-// eax store the random seed
-// ebx store the crypto key
-// ecx store the loop times
-// edx store the xor shift median
-// esi store the body address
-// edi store the current value
+// {{.Reg.eax}} store the random seed
+// {{.Reg.ebx}} store the crypto key
+// {{.Reg.ecx}} store the loop times
+// {{.Reg.edx}} store the xor shift median
+// {{.Reg.esi}} store the body address
+// {{.Reg.edi}} store the current value
 
-header:
+entry:
   // save context
   pushad                                       {{iji}}
   pushfd                                       {{iji}}
@@ -71,24 +67,8 @@ xor_shift_32:
   xor {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
   jmp ret_1                                    {{ijs}}
 
-padding:
-{{if .Padding}}
-  {{iji}}  {{iji}}  {{iji}}  {{iji}}
-  {{iji}}  {{iji}}  {{iji}}  {{iji}}
-  {{iji}}  {{iji}}  {{iji}}  {{iji}}
-  {{iji}}  {{iji}}  {{iji}}  {{iji}}
-  {{iji}}  {{iji}}  {{iji}}  {{iji}}
-  {{iji}}  {{iji}}  {{iji}}  {{iji}}
-  {{iji}}  {{iji}}  {{iji}}  {{iji}}
-  {{iji}}  {{iji}}  {{iji}}  {{iji}}
-{{end}}
-
   // jump to the loader or shellcode
   jmp body                                     {{ijs}}
-
-{{if .Padding}}
-  {{db .PadData}}
-{{end}}
 
 calc_body_addr:
   pop  {{.Reg.esi}}                            {{iji}}
