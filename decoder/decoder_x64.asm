@@ -3,13 +3,13 @@
 // iji means insert junk instruction
 // ijs means insert junk instruction with short version
 
-// rax store the seed
-// rbx store the key and multiplier
-// rcx store the increment
-// rdx store the loop times
-// rbp store the body address
-// rsi store the swapped address about i
-// rdi store the swapped address about j
+// {{.Reg.rax}} store the seed
+// {{.Reg.rbx}} store the key and multiplier
+// {{.Reg.rcx}} store the increment
+// {{.Reg.rdx}} store the loop times
+// {{.Reg.rbp}} store the body address
+// {{.Reg.rsi}} store the swapped address about i
+// {{.Reg.rdi}} store the swapped address about j
 
 entry:
   // save context
@@ -61,14 +61,17 @@ entry:
   // reserve space for store the div result
   sub rsp, 8                                   {{iji}}
 
-  // save context
+  // save context about execute div
   push rax                                     {{iji}}
   push rcx                                     {{iji}}
   push rdx                                     {{iji}}
 
-  // seed % (i + 1)
-  mov rax, {{.Reg.rax}}                        {{iji}}
-  mov rcx, {{.Reg.rdx}}                        {{iji}}
+  // calculate seed % (i + 1)
+  // push/pop for prevent register conflict
+  push {{.Reg.rdx}}                            {{iji}}
+  push {{.Reg.rax}}                            {{iji}}
+  pop rax                                      {{iji}}
+  pop rcx                                      {{iji}}
   inc rcx                                      {{iji}}
   xor rdx, rdx                                 {{iji}}
   div rcx                                      {{iji}}
@@ -76,7 +79,7 @@ entry:
   // store the div result
   mov [rsp+24], rdx                            {{iji}}
 
-  // restore context
+  // restore context about execute div
   pop rdx                                      {{iji}}
   pop rcx                                      {{iji}}
   pop rax                                      {{iji}}
