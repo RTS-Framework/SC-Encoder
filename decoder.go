@@ -45,10 +45,6 @@ type decoderCtx struct {
 	OffsetT int32
 	OffsetA int32
 	OffsetS int32
-
-	// for prevent call short
-	Padding bool
-	PadData []byte
 }
 
 func (enc *Encoder) addDecoder(input []byte) ([]byte, error) {
@@ -130,11 +126,6 @@ func (enc *Encoder) buildDecoder(decoder string, input []byte) (string, []byte, 
 		OffsetT: offsetT,
 		OffsetA: offsetA,
 		OffsetS: offsetS,
-	}
-	// add padding data at tail of decoder
-	if !enc.opts.MinifyMode {
-		ctx.Padding = true
-		ctx.PadData = enc.randBytes(8 + enc.rand.Intn(48))
 	}
 	// build source from template and assemble it
 	buf := bytes.NewBuffer(make([]byte, 0, 512))
