@@ -3,27 +3,40 @@
 // iji means insert junk instruction
 // ijs means insert junk instruction with short version
 
-// {{.Reg.eax}} store the random seed
-// {{.Reg.ebx}} store the crypto key
-// {{.Reg.ecx}} store the loop times
-// {{.Reg.edx}} store the xor shift median
-// {{.Reg.esi}} store the body address
-// {{.Reg.edi}} store the current value
+// {{.Reg.eax}} store the seed
+// {{.Reg.ebx}} store the key and multiplier
+// {{.Reg.ecx}} store the increment
+// {{.Reg.edx}} store the loop times
+// {{.Reg.ebp}} store the body address
+// {{.Reg.esi}} store the swapped address about i
+// {{.Reg.edi}} store the swapped address about j
 
 entry:
   // save context
   pushad                                       {{iji}}
   pushfd                                       {{iji}}
 
+  // load seed and key
   mov {{.Reg.eax}}, {{hex .Seed}}              {{iji}}
   mov {{.Reg.ebx}}, {{hex .Key}}               {{iji}}
 
-  // prevent continuous 0x00
-  mov {{.Reg.ecx}}, {{hex .NumLoopStub}}       {{iji}}
-  xor {{.Reg.ecx}}, {{hex .NumLoopMaskA}}      {{iji}}
-  xor {{.Reg.ecx}}, {{hex .NumLoopMaskB}}      {{iji}}
+  // decrypt increment
+  mov {{.Reg.ecx}}, {{hex .Imm.Inc}}           {{iji}}
+  xor {{.Reg.ecx}}, {{.Reg.ebx}}               {{iji}}
 
-  // for prevent "E8 00 00 00 00"
+  // decrypt multiplier and destroy key
+  mov {{.Reg.edx}}, {{hex .Imm.Mul}}           {{iji}}
+  xor {{.Reg.ebx}}, {{.Reg.edx}}               {{iji}}
+
+  // decrypt the loop time and prevent continuous 0x00
+  mov {{.Reg.edx}}, {{hex .NumLoopStub}}       {{iji}}
+  xor {{.Reg.edx}}, {{hex .NumLoopMaskA}}      {{iji}}
+  xor {{.Reg.edx}}, {{hex .NumLoopMaskB}}      {{iji}}
+
+  // check the loop time is zero
+  test {{.Reg.edx}}, {{.Reg.edx}}              {{iji}}
+  jz skip_unshuffle                            {{iji}}
+
   call calc_body_addr
  flag_CEA:                                              {{iji}}
   add {{.Reg.esi}}, body - flag_CEA + {{hex .OffsetT}}  {{iji}}
@@ -47,28 +60,13 @@ entry:
   add {{.Reg.esi}}, 4                          {{ijs}}
   dec {{.Reg.ecx}}                             {{ijs}}
   jnz loop_xor                                 {{ijs}}
+ skip_unshuffle:
 
   // restore context
   popfd                                        {{iji}}
   popad                                        {{iji}}
 
-  // jump to the padding junk instruction
-  jmp padding                                  {{iji}}
-
-xor_shift_32:
-  mov {{.Reg.edx}}, {{.Reg.eax}}               {{ijs}}
-  shl {{.Reg.edx}}, 13                         {{ijs}}
-  xor {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
-  mov {{.Reg.edx}}, {{.Reg.eax}}               {{ijs}}
-  shr {{.Reg.edx}}, 17                         {{ijs}}
-  xor {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
-  mov {{.Reg.edx}}, {{.Reg.eax}}               {{ijs}}
-  shl {{.Reg.edx}}, 5                          {{ijs}}
-  xor {{.Reg.eax}}, {{.Reg.edx}}               {{ijs}}
-  jmp ret_1                                    {{ijs}}
-
-  // jump to the loader or shellcode
-  jmp body                                     {{ijs}}
+  jmp body                                     {{iji}}
 
 calc_body_addr:
   pop  {{.Reg.esi}}                            {{iji}}
@@ -76,3 +74,4 @@ calc_body_addr:
   ret                                          {{iji}}
 
 body:
+  // loader or raw shellcode
