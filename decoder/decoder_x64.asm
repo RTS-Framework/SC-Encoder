@@ -77,7 +77,7 @@ entry:
   div rcx                                      {{iji}}
 
   // store the div result
-  mov [rsp+24], rdx                            {{iji}}
+  mov [rsp + 3*8], rdx                         {{iji}}
 
   // restore context about execute div
   pop rdx                                      {{iji}}
