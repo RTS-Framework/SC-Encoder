@@ -73,11 +73,36 @@ entry:
   div ecx                                      {{iji}}
 
   // store the div result
-  mov [esp+3*4], edx                           {{iji}}
+  mov [esp + 3*4], edx                         {{iji}}
 
   // restore context about execute div
   pop edx                                      {{iji}}
   pop ecx                                      {{iji}}
+  pop eax                                      {{iji}}
+
+  // calculate the swapped data address
+  mov {{.Reg.esi}}, {{.Reg.edx}}               {{iji}}
+  add {{.Reg.esi}}, {{.Reg.ebp}}               {{iji}}
+  mov {{.Reg.edi}}, [esp]                      {{iji}}
+  add {{.Reg.edi}}, {{.Reg.ebp}}               {{iji}}
+
+  // save context about swap data
+  push eax                                     {{iji}}
+  push esi                                     {{iji}}
+  push edi                                     {{iji}}
+
+  // swap data[i] and data[j]
+  push {{.Reg.esi}}                            {{iji}}
+  push {{.Reg.edi}}                            {{iji}}
+  pop edi                                      {{iji}}
+  pop esi                                      {{iji}}
+  mov al, [esi]                                {{iji}}
+  xchg al, [edi]                               {{iji}}
+  mov [esi], al                                {{iji}}
+
+  // restore context about swap data
+  pop edi                                      {{iji}}
+  pop esi                                      {{iji}}
   pop eax                                      {{iji}}
 
   // restore stack
@@ -98,8 +123,8 @@ entry:
   jmp body                                     {{iji}}
 
 calc_body_addr:
-  pop  {{.Reg.esi}}                            {{iji}}
-  push {{.Reg.esi}}                            {{iji}}
+  pop  {{.Reg.ebp}}                            {{iji}}
+  push {{.Reg.ebp}}                            {{iji}}
   ret                                          {{iji}}
 
 body:
