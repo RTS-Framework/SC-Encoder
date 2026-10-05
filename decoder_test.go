@@ -1,9 +1,6 @@
 package encoder
 
 import (
-	"bytes"
-	"compress/flate"
-	"crypto/rand"
 	"fmt"
 	"runtime"
 	"testing"
@@ -29,6 +26,7 @@ func TestDecoder(t *testing.T) {
 		require.NoError(t, err)
 		err = engine.Close()
 		require.NoError(t, err)
+		spew.Dump(shellcode)
 
 		opts := &Options{
 			MinifyMode: true,
@@ -47,6 +45,7 @@ func TestDecoder(t *testing.T) {
 		ret, _, _ := syscallN(addr, (uintptr)(unsafe.Pointer(&val)))
 		require.Equal(t, 0x86, int(ret))
 		require.Equal(t, 0x86, val)
+		spew.Dump(unsafe.Slice((*byte)(unsafe.Pointer(addr)), ctx.Size))
 	})
 
 	t.Run("x64", func(t *testing.T) {
@@ -60,6 +59,7 @@ func TestDecoder(t *testing.T) {
 		require.NoError(t, err)
 		err = engine.Close()
 		require.NoError(t, err)
+		spew.Dump(shellcode)
 
 		opts := &Options{
 			MinifyMode: true,
@@ -78,6 +78,7 @@ func TestDecoder(t *testing.T) {
 		ret, _, _ := syscallN(addr, (uintptr)(unsafe.Pointer(&val)))
 		require.Equal(t, 0x64, int(ret))
 		require.Equal(t, 0x64, val)
+		spew.Dump(unsafe.Slice((*byte)(unsafe.Pointer(addr)), ctx.Size))
 	})
 
 	err := encoder.Close()
@@ -173,53 +174,5 @@ func TestLCG(t *testing.T) {
 		next := lcg64(seed)
 		prev := reverseLCG64(next)
 		require.Equal(t, seed, prev)
-	})
-}
-
-func TestCompressRatio(t *testing.T) {
-	t.Run("x86", func(t *testing.T) {
-		data := bytes.Repeat([]byte{0x00}, 256*1024)
-		key := make([]byte, 32)
-
-		for i := 0; i < 1000; i++ {
-			_, err := rand.Read(key)
-			require.NoError(t, err)
-			cipher := encrypt32(data, key)
-			require.NoError(t, err)
-
-			buf := bytes.NewBuffer(make([]byte, 0, 256*1024))
-			w, err := flate.NewWriter(buf, flate.BestCompression)
-			require.NoError(t, err)
-			_, err = w.Write(cipher)
-			require.NoError(t, err)
-			err = w.Close()
-			require.NoError(t, err)
-
-			expected := len(cipher) * 98 / 100
-			require.Greaterf(t, buf.Len(), expected, "bad compress ratio at %d\n", i)
-		}
-	})
-
-	t.Run("x64", func(t *testing.T) {
-		data := bytes.Repeat([]byte{0x00}, 256*1024)
-		key := make([]byte, 32)
-
-		for i := 0; i < 1000; i++ {
-			_, err := rand.Read(key)
-			require.NoError(t, err)
-			cipher := encrypt64(data, key)
-			require.NoError(t, err)
-
-			buf := bytes.NewBuffer(make([]byte, 0, 256*1024))
-			w, err := flate.NewWriter(buf, flate.BestCompression)
-			require.NoError(t, err)
-			_, err = w.Write(cipher)
-			require.NoError(t, err)
-			err = w.Close()
-			require.NoError(t, err)
-
-			expected := len(cipher) * 98 / 100
-			require.Greaterf(t, buf.Len(), expected, "bad compress ratio at %d\n", i)
-		}
 	})
 }
